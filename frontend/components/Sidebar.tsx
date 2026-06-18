@@ -1,6 +1,6 @@
 export default function Sidebar() {
   return (
-    <aside>
+    <aside className="w-64 border-r p-4">
       <h2>P2P Wallet</h2>
 
       <ul>
