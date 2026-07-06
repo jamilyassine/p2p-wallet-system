@@ -1,5 +1,6 @@
 import PageHeader from "../../components/layout/PageHeader";
 import DashboardLayout from "../../components/layout/DashboardLayout";
+import DashboardCard from "../../components/layout/DashboardCard";
 
 export default function DashboardPage() {
   return (
@@ -10,15 +11,22 @@ export default function DashboardPage() {
         subtitle="Welcome to the P2P Wallet System"
     />
 
-    <div>
-        <h2>Total Balance</h2>
-        <p>$0.00</p>
-    </div>
 
-    <div>
-        <h2>Recent Transactions</h2>
-        <p>No transactions yet</p>
-    </div>
+    <DashboardCard
+        title="Total Balance"
+        value="$0.00"
+    />
+
+
+    <DashboardCard
+        title="Recent Transactions"
+        value="No transactions yet"
+    />
+
+    <DashboardCard
+        title="Wallets"
+        value="0"
+    />
 
 </DashboardLayout>
   );
