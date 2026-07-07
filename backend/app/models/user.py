@@ -1,7 +1,7 @@
 from app.db.session import Base
 from sqlalchemy import Integer
 from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import mapped_column, relationship
 from sqlalchemy import String
 from sqlalchemy import DateTime
 from datetime import datetime
@@ -26,6 +26,12 @@ class User(Base):
         DateTime,
         default=datetime.utcnow
     )
+
+    wallet: Mapped["Wallet"] = relationship(
+        back_populates="user",
+        uselist=False
+    )
+
 
     
 

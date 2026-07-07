@@ -3,7 +3,7 @@ from app.db.session import SessionLocal
 from sqlalchemy import text
 from fastapi.responses import JSONResponse
 
-
+import traceback
 router = APIRouter()
 
 @router.get("/health")
@@ -20,6 +20,7 @@ def health():
         }
 
     except Exception:
+        traceback.print_exc()
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
