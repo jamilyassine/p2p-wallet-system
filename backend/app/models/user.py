@@ -32,6 +32,11 @@ class User(Base):
         uselist=False
     )
 
+    name: Mapped[str] = mapped_column(
+        String,
+        nullable=False
+    )
+
 
     
 
