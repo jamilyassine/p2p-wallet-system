@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.schemas.user import UserCreate, UserResponse
-from app.services.user_service import create_user, get_user
+from app.services.user_service import create_user, get_user, get_users
 from app.db.session import get_db
 from sqlalchemy.orm import Session
 router = APIRouter()
@@ -21,7 +21,11 @@ def create_user_endpoint(user_data: UserCreate,db: Session = Depends(get_db)):
     return create_user(db, user_data)
 
     
-    
+
+@router.get("/users", response_model=list[UserResponse])
+def get_users_endpoint(db: Session = Depends(get_db)):
+    users = get_users(db)
+    return users
 
 
 

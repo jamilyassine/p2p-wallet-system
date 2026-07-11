@@ -19,7 +19,7 @@ def transfer(db, sender_id: int, receiver_id: int, amount: float):
 
     sender_wallet = (
         db.query(Wallet)
-        .filter(Wallet.id == sender_id)
+        .filter(Wallet.user_id == sender_id)
         .first()
     )
 
@@ -31,7 +31,7 @@ def transfer(db, sender_id: int, receiver_id: int, amount: float):
 
     receiver_wallet = (
         db.query(Wallet)
-        .filter(Wallet.id == receiver_id)
+        .filter(Wallet.user_id == receiver_id)
         .first()
     )
 

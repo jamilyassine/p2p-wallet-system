@@ -1,10 +1,10 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, EmailStr
 from datetime import datetime
 
 
 class UserCreate(BaseModel):
-    name: str
-    email: str
+    name: str = Field(min_length=1)
+    email: EmailStr
 
 
 class UserResponse(BaseModel):
