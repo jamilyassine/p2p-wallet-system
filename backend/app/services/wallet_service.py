@@ -28,7 +28,18 @@ def get_wallet(db: Session, wallet_id: int):
     return db.get(Wallet, wallet_id)
 
 
-    
+
+def get_wallet_by_user_id(db: Session, user_id: int):
+    wallet = db.query(Wallet).filter(Wallet.user_id == user_id).first()
+    if not wallet:
+        raise HTTPException(
+            status_code=404,
+            detail="Wallet not found."
+        )
+    return wallet
+
+
+
     
 
 

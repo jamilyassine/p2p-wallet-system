@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.transfer import TransferRequest
-from app.services.transfer_service import transfer
+from app.services.transfer_service import transfer, get_transfers_by_user_id
 
 router = APIRouter(
     prefix="/transfers",
@@ -29,3 +29,9 @@ def create_transfer(
     }
 
     
+
+@router.get("/user/{user_id}")
+def get_transfers_by_user_id_endpoint(user_id: int,db: Session = Depends(get_db)):
+    return get_transfers_by_user_id(db, user_id)
+
+

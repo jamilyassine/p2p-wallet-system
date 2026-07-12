@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserCreate
 from fastapi import HTTPException
+from app.models.wallet import Wallet
 
 
 
@@ -26,6 +27,14 @@ def create_user(db: Session, user_data: UserCreate):
     db.commit()
 
     db.refresh(user)
+
+    wallet = Wallet(
+        user_id=user.id,
+        balance=0,
+    )
+
+    db.add(wallet)
+    db.commit()
 
     return user
 
