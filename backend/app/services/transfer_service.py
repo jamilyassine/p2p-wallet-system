@@ -7,8 +7,6 @@ from app.models.transfers import Transfer, TransferStatus
 
 def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
 
-    status=TransferStatus.PENDING
-
     if amount <= 0:
         raise HTTPException(
             status_code=400,
@@ -49,7 +47,7 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
     if sender_wallet.balance < amount:
         raise HTTPException(
             status_code=400,
-            detail="Insufficient funds"
+            detail="Insufficient balance"
         )
     sender_wallet.balance -= amount
     receiver_wallet.balance += amount
@@ -65,10 +63,7 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
     db.add(transfer)
 
     db.commit()
-
-    transfer.status = TransferStatus.SUCCESS
-    transfer.completed_at = datetime.utcnow()
-
+    
     db.refresh(transfer)
 
     return sender_wallet, receiver_wallet
