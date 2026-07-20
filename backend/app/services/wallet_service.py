@@ -1,11 +1,12 @@
 from sqlalchemy.orm import Session
-from app.models.wallet import Wallet
 from app.schemas.wallet import WalletCreate
 from fastapi import HTTPException
+from app.repositories.wallet_repository import wallet_repository
 
 def create_wallet(db: Session, wallet_data: WalletCreate):
 
-    existing_wallet = db.query(Wallet).filter(Wallet.user_id == wallet_data.user_id).first()
+    existing_wallet = wallet_repository.get_by_user_id(db,wallet_data.user_id)
+
 
     if existing_wallet:
         raise HTTPException(
@@ -13,24 +14,18 @@ def create_wallet(db: Session, wallet_data: WalletCreate):
             detail="User already has a wallet."
         )
 
-    wallet = Wallet(
-        user_id=wallet_data.user_id
-    )
-
-    db.add(wallet)
-    db.commit()
-    db.refresh(wallet)
+    wallet = wallet_repository.create(db,wallet_data)
 
     return wallet
 
 
 def get_wallet(db: Session, wallet_id: int):
-    return db.get(Wallet, wallet_id)
+    return wallet_repository.get_by_id(db,wallet_id)
 
 
 
 def get_wallet_by_user_id(db: Session, user_id: int):
-    wallet = db.query(Wallet).filter(Wallet.user_id == user_id).first()
+    wallet = wallet_repository.get_by_user_id(db,user_id)
     if not wallet:
         raise HTTPException(
             status_code=404,

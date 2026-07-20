@@ -1,15 +1,15 @@
 from sqlalchemy.orm import Session
-from app.models.user import User
 from app.schemas.user import UserCreate
 from fastapi import HTTPException
-from app.models.wallet import Wallet
-
+from app.repositories.user_repository import user_repository
+from app.repositories.wallet_repository import wallet_repository
+from app.schemas.wallet import WalletCreate
 
 
 
 def create_user(db: Session, user_data: UserCreate):
 
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
+    existing_user = user_repository.get_by_email(db,user_data.email)
 
     if existing_user:
         raise HTTPException(
@@ -17,24 +17,16 @@ def create_user(db: Session, user_data: UserCreate):
             detail="Email already exists."
         )
 
-    user = User(
-        name=user_data.name,
-        email=user_data.email,
+    user = user_repository.create(
+        db,
+        user_data,
     )
 
-    db.add(user)
-
-    db.commit()
-
-    db.refresh(user)
-
-    wallet = Wallet(
-        user_id=user.id,
-        balance=0,
+    wallet_repository.create(
+        db,
+        WalletCreate(user_id=user.id)
     )
 
-    db.add(wallet)
-    db.commit()
 
     return user
 
@@ -42,8 +34,9 @@ def create_user(db: Session, user_data: UserCreate):
 
 
 def get_user(db: Session, user_id: int):
-    return db.get(User, user_id)
+    return user_repository.get_by_id(db,user_id)
 
 
 def get_users(db: Session):
-    return db.query(User).all()
+    return user_repository.get_all(db)
+

@@ -4,6 +4,9 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from datetime import datetime
 from app.models.transfers import Transfer, TransferStatus
+from app.repositories.transfer_repository import transfer_repository
+from app.repositories.wallet_repository import wallet_repository
+
 
 def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
 
@@ -20,10 +23,9 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
         )
 
 
-    sender_wallet = (
-        db.query(Wallet)
-        .filter(Wallet.user_id == sender_id)
-        .first()
+    sender_wallet = wallet_repository.get_by_user_id(
+        db,
+        sender_id,
     )
 
     if sender_wallet is None:
@@ -32,10 +34,9 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
             detail="Sender wallet not found"
         )
 
-    receiver_wallet = (
-        db.query(Wallet)
-        .filter(Wallet.user_id == receiver_id)
-        .first()
+    receiver_wallet = wallet_repository.get_by_user_id(
+        db,
+        receiver_id,
     )
 
     if receiver_wallet is None:
@@ -60,38 +61,27 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
         completed_at=datetime.utcnow(),
     )
 
-    db.add(transfer)
-
-    db.commit()
-    
-    db.refresh(transfer)
+    transfer_repository.create(
+        db,
+        transfer,
+    )
 
     return sender_wallet, receiver_wallet
 
 
 def get_transfers_by_user_id(db: Session, user_id: int):
 
-    wallet = (
-        db.query(Wallet)
-        .filter(Wallet.user_id == user_id)
-        .first()
-    )
+    wallet = wallet_repository.get_by_user_id(db, user_id)
 
+    
     if wallet is None:
         raise HTTPException(
             status_code=404,
             detail="Wallet not found"
         )
 
-    return (
-        db.query(Transfer)
-        .filter(
-            or_(
-                Transfer.sender_wallet_id == wallet.id,
-                Transfer.receiver_wallet_id == wallet.id,
-            )
-        )
-        .order_by(Transfer.created_at.desc())
-        .all()
+    return transfer_repository.get_by_wallet(
+        db,
+        wallet.id,
     )
 
