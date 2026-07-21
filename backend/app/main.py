@@ -3,8 +3,13 @@ from app.api.health import router as health_router
 from app.api import users, wallets, transfers
 import app.db.init_db
 from fastapi.middleware.cors import CORSMiddleware
+from app.handlers.exception_handlers import (
+    register_exception_handlers
+)
 
 app = FastAPI()
+
+register_exception_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,

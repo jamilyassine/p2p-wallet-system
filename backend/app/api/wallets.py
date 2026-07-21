@@ -16,9 +16,10 @@ def create_wallet_endpoint(wallet_data: WalletCreate,db: Session = Depends(get_d
 def get_wallet_endpoint(wallet_id: int,db: Session = Depends(get_db)):
 
     wallet = get_wallet(db, wallet_id)
-
+    '''
     if wallet is None:
         raise HTTPException(status_code=404, detail="Wallet not found")
+    '''
 
     return wallet
 
