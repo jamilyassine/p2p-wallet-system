@@ -11,7 +11,6 @@ DATABASE_URL = (
     f"/{settings.db_name}"
 )
 
-print(repr(DATABASE_URL))
 engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(
