@@ -1,10 +1,10 @@
 from fastapi import APIRouter, status, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from fastapi.responses import JSONResponse
 from app.db.session import get_db
 
-router = APIRouter()
+router = APIRouter(tags=["Health"])
 
 @router.get("/health")
 def health(db: Session = Depends(get_db)):

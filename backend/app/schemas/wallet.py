@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
+from decimal import Decimal
+
+from pydantic import BaseModel, ConfigDict
 
 
 class WalletCreate(BaseModel):
@@ -9,6 +11,9 @@ class WalletCreate(BaseModel):
 class WalletResponse(BaseModel):
     id: int
     user_id: int
-    balance: float
+    balance: Decimal
     created_at: datetime
 
+    model_config = ConfigDict(
+        from_attributes=True,
+    )

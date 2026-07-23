@@ -1,5 +1,7 @@
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -10,11 +12,10 @@ from sqlalchemy import (
     Numeric,
     String,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
-from typing import TYPE_CHECKING
 
 
 class TransferStatus(str, Enum):
@@ -48,8 +49,8 @@ class Transfer(Base):
         nullable=False,
     )
 
-    amount: Mapped[float] = mapped_column(
-        Numeric,
+    amount: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2),
         nullable=False,
     )
 
@@ -72,6 +73,7 @@ class Transfer(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
+        nullable=False,
     )
 
     completed_at: Mapped[datetime | None] = mapped_column(
@@ -88,6 +90,7 @@ class Transfer(Base):
         foreign_keys=[receiver_wallet_id],
         back_populates="received_transfers",
     )
+
 
 if TYPE_CHECKING:
     from app.models.wallet import Wallet

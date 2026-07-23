@@ -6,7 +6,11 @@ from app.models.transfers import Transfer
 
 class TransferRepository:
 
-    def create(self, db: Session, transfer):
+    def create(
+        self,
+        db: Session,
+        transfer: Transfer,
+    ) -> Transfer:
 
         db.add(transfer)
         db.commit()
@@ -14,7 +18,11 @@ class TransferRepository:
 
         return transfer
 
-    def get_by_wallet(self, db: Session, wallet_id: int):
+    def get_by_wallet(
+        self,
+        db: Session,
+        wallet_id: int,
+    ) -> list[Transfer]:
 
         return (
             db.query(Transfer)

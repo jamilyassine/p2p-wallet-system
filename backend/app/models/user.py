@@ -1,11 +1,10 @@
-from app.db.session import Base
-from sqlalchemy import Integer
-from sqlalchemy.orm import Mapped
-from sqlalchemy.orm import mapped_column, relationship
-from sqlalchemy import String
-from sqlalchemy import DateTime
 from datetime import datetime
+from typing import TYPE_CHECKING
 
+from sqlalchemy import DateTime, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db.session import Base
 
 
 class User(Base):
@@ -13,35 +12,31 @@ class User(Base):
 
     id: Mapped[int] = mapped_column(
         Integer,
-        primary_key=True
-    )   
-
-
-    email: Mapped[str] = mapped_column(
-        String,
-        nullable=False
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow
-    )
-
-    wallet: Mapped["Wallet"] = relationship(
-        back_populates="user",
-        uselist=False
+        primary_key=True,
     )
 
     name: Mapped[str] = mapped_column(
         String,
-        nullable=False
+        nullable=False,
+    )
+
+    email: Mapped[str] = mapped_column(
+        String,
+        unique=True,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    wallet: Mapped["Wallet"] = relationship(
+        back_populates="user",
+        uselist=False,
     )
 
 
-    
-
-
-
-
-
-
+if TYPE_CHECKING:
+    from app.models.wallet import Wallet

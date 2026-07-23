@@ -2,36 +2,52 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.transfer import TransferRequest
-from app.services.transfer_service import transfer, get_transfers_by_user_id
+from app.schemas.transfer import (
+    TransferRequest,
+    TransferResponse,
+    TransferRead,
+)
+from app.services.transfer_service import (
+    transfer_money,
+    get_transfers_by_user_id,
+)
 
 router = APIRouter(
     prefix="/transfers",
-    tags=["Transfers"]
+    tags=["Transfers"],
 )
 
-@router.post("/")
+
+@router.post(
+    "/",
+    response_model=TransferResponse,
+)
 def create_transfer(
     request: TransferRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-
-    sender_wallet, receiver_wallet = transfer(
+    sender_wallet, receiver_wallet = transfer_money(
         db=db,
         sender_id=request.sender_id,
         receiver_id=request.receiver_id,
         amount=request.amount,
     )
 
-    return {
-        "sender_balance": sender_wallet.balance,
-        "receiver_balance": receiver_wallet.balance,
-    }
-
-    
-
-@router.get("/user/{user_id}")
-def get_transfers_by_user_id_endpoint(user_id: int,db: Session = Depends(get_db)):
-    return get_transfers_by_user_id(db, user_id)
+    return TransferResponse(
+        sender_balance=sender_wallet.balance,
+        receiver_balance=receiver_wallet.balance,
+    )
 
 
+@router.get(
+    "/user/{user_id}",
+    response_model=list[TransferRead],
+)
+def get_transfers_by_user_id_endpoint(
+    user_id: int,
+    db: Session = Depends(get_db),
+):
+    return get_transfers_by_user_id(
+        db,
+        user_id,
+    )

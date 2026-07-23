@@ -1,33 +1,32 @@
+from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
-from datetime import datetime
+
+from app.exceptions import (
+    InsufficientBalanceException,
+    InvalidTransferAmountException,
+    SelfTransferException,
+    WalletNotFoundException,
+)
 from app.models.transfers import Transfer, TransferStatus
+from app.models.wallet import Wallet
 from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
-from app.exceptions import *
 
 
-
-def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
+def transfer_money(
+    db: Session,
+    sender_id: int,
+    receiver_id: int,
+    amount: Decimal,
+) -> tuple[Wallet, Wallet]:
 
     if amount <= 0:
-        '''
-        raise HTTPException(
-            status_code=400,
-            detail="Transfer amount must be greater than zero"
-        )
-        '''
         raise InvalidTransferAmountException()
 
     if sender_id == receiver_id:
-        '''
-        raise HTTPException(
-            status_code=400,
-            detail="Sender and receiver wallets must be different"
-        )
-        '''
         raise SelfTransferException()
-
 
     sender_wallet = wallet_repository.get_by_user_id(
         db,
@@ -35,12 +34,6 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
     )
 
     if sender_wallet is None:
-        '''
-        raise HTTPException(
-            status_code=404,
-            detail="Sender wallet not found"
-        )
-        '''
         raise WalletNotFoundException()
 
     receiver_wallet = wallet_repository.get_by_user_id(
@@ -49,21 +42,9 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
     )
 
     if receiver_wallet is None:
-        '''
-        raise HTTPException(
-            status_code=404,
-            detail="Receiver wallet not found"
-        )
-        '''
         raise WalletNotFoundException()
 
     if sender_wallet.balance < amount:
-        '''
-        raise HTTPException(
-            status_code=400,
-            detail="Insufficient balance"
-        )
-        '''
         raise InsufficientBalanceException()
 
     sender_wallet.balance -= amount
@@ -82,21 +63,23 @@ def transfer(db : Session, sender_id: int, receiver_id: int, amount: float):
         transfer,
     )
 
-    return sender_wallet, receiver_wallet
+    return (
+        sender_wallet,
+        receiver_wallet,
+    )
 
 
-def get_transfers_by_user_id(db: Session, user_id: int):
+def get_transfers_by_user_id(
+    db: Session,
+    user_id: int,
+) -> list[Transfer]:
 
-    wallet = wallet_repository.get_by_user_id(db, user_id)
+    wallet = wallet_repository.get_by_user_id(
+        db,
+        user_id,
+    )
 
-    
     if wallet is None:
-        '''
-        raise HTTPException(
-            status_code=404,
-            detail="Wallet not found"
-        )
-        '''
         raise WalletNotFoundException()
 
     return transfer_repository.get_by_wallet(
