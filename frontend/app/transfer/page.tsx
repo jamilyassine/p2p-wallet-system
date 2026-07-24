@@ -1,26 +1,47 @@
 export default function TransferPage() {
-  return (
-    <div>
-      <h1>Transfer</h1>
+    return (
+        <main>
+            <h1>Transfer</h1>
 
-      <form>
-        <div>
-          <label>Sender Wallet ID</label>
-          <input type="number" />
-        </div>
+            <form>
+                <div>
+                    <label htmlFor="senderWalletId">
+                        Sender Wallet ID
+                    </label>
 
-        <div>
-          <label>Receiver Wallet ID</label>
-          <input type="number" />
-        </div>
+                    <input
+                        id="senderWalletId"
+                        type="number"
+                    />
+                </div>
 
-        <div>
-          <label>Amount</label>
-          <input type="number" step="0.01" />
-        </div>
+                <div>
+                    <label htmlFor="receiverWalletId">
+                        Receiver Wallet ID
+                    </label>
 
-        <button type="submit">Transfer</button>
-      </form>
-    </div>
-  );
+                    <input
+                        id="receiverWalletId"
+                        type="number"
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="amount">
+                        Amount
+                    </label>
+
+                    <input
+                        id="amount"
+                        type="number"
+                        step="0.01"
+                    />
+                </div>
+
+                <button type="submit">
+                    Transfer
+                </button>
+            </form>
+        </main>
+    );
 }
