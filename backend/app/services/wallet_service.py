@@ -9,25 +9,6 @@ from app.repositories.wallet_repository import wallet_repository
 from app.schemas.wallet import WalletCreate
 
 
-def create_wallet(
-    db: Session,
-    wallet_data: WalletCreate,
-) -> Wallet:
-
-    existing_wallet = wallet_repository.get_by_user_id(
-        db,
-        wallet_data.user_id,
-    )
-
-    if existing_wallet is not None:
-        raise WalletAlreadyExistsException()
-
-    return wallet_repository.create(
-        db,
-        wallet_data,
-    )
-
-
 def get_wallet(
     db: Session,
     wallet_id: int,

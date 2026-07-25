@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from app.schemas.user import UserCreate, UserResponse
-from app.services.user_service import create_user, get_user, get_users
+from app.services import user_service
 from app.db.session import get_db
 from sqlalchemy.orm import Session
 router = APIRouter(
@@ -18,7 +18,7 @@ def get_user_endpoint(
     db: Session = Depends(get_db),
 ):
     
-    return get_user(
+    return user_service.get_user(
         db,
         user_id,
     )   
@@ -33,7 +33,7 @@ def create_user_endpoint(
     user_data: UserCreate,
     db: Session = Depends(get_db),
 ):
-    return create_user(db, user_data)
+    return user_service.create_user(db, user_data)
 
     
 
@@ -44,7 +44,7 @@ def create_user_endpoint(
 def get_users_endpoint(
     db: Session = Depends(get_db),
 ):
-    return get_users(db)
+    return user_service.get_users(db)
 
 
 

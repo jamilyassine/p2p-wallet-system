@@ -481,7 +481,9 @@ The backend exposes the following REST API endpoints.
 
 | Method | Endpoint                  | Description              |
 | ------ | ------------------------- | ------------------------ |
+| GET    | `/wallets/{wallet_id}`    | Retrieve a wallet by ID  |
 | GET    | `/wallets/user/{user_id}` | Retrieve a user's wallet |
+
 
 
 ---

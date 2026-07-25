@@ -7,10 +7,8 @@ from app.schemas.transfer import (
     TransferResponse,
     TransferRead,
 )
-from app.services.transfer_service import (
-    transfer_money,
-    get_transfers_by_user_id,
-)
+
+from app.services import transfer_service
 
 router = APIRouter(
     prefix="/transfers",
@@ -22,11 +20,13 @@ router = APIRouter(
     "/",
     response_model=TransferResponse,
 )
-def create_transfer(
-    request: TransferRequest,
-    db: Session = Depends(get_db),
-):
-    sender_wallet, receiver_wallet = transfer_money(
+
+
+def create_transfer_endpoint(
+        request: TransferRequest,
+        db: Session = Depends(get_db),
+    ):
+    sender_wallet, receiver_wallet = transfer_service.transfer_money(
         db=db,
         sender_id=request.sender_id,
         receiver_id=request.receiver_id,
@@ -47,7 +47,7 @@ def get_transfers_by_user_id_endpoint(
     user_id: int,
     db: Session = Depends(get_db),
 ):
-    return get_transfers_by_user_id(
+    return transfer_service.get_transfers_by_user_id(
         db,
         user_id,
     )

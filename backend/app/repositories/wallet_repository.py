@@ -44,12 +44,6 @@ class WalletRepository:
 
         return wallet
 
-    def save(
-        self,
-        db: Session,
-    ) -> None:
-        db.commit()
-
 
 wallet_repository = WalletRepository()
 

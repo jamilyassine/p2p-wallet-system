@@ -1,5 +1,5 @@
-from datetime import datetime
 from decimal import Decimal
+from datetime import datetime, UTC
 
 from sqlalchemy.orm import Session
 
@@ -55,7 +55,7 @@ def transfer_money(
         receiver_wallet_id=receiver_wallet.id,
         amount=amount,
         status=TransferStatus.SUCCESS,
-        completed_at=datetime.utcnow(),
+        completed_at=datetime.now(UTC),
     )
 
     transfer_repository.create(
