@@ -13,6 +13,7 @@ from app.models.user import User
 from app.models.wallet import Wallet
 
 
-Base.metadata.create_all(bind=engine)
+#Base.metadata.create_all(bind=engine)
+
 
 
