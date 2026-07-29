@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document explains the financial architecture of the wallet system and the reasoning behind the introduction of a ledger. Rather than storing financial truth directly in wallet balances, the application will gradually transition to an immutable ledger-based model inspired by real financial systems.
+This document explains the financial architecture of the wallet system and the reasoning behind the introduction of a ledger. Rather than storing financial truth directly in wallet balances, the application gradually transitions to an immutable ledger-based model inspired by real financial systems.
 
 ---
 
@@ -30,7 +30,7 @@ Sum of all Ledger Entries
 
 If wallet balances were lost or corrupted, they could be reconstructed by replaying the ledger.
 
-Because of this, balances are considered **derived state**, while the ledger remains the permanent record.
+Because of this, balances are considered **derived state**, while the ledger remains the permanent financial record.
 
 ---
 
@@ -68,7 +68,7 @@ An auditable system allows engineers, administrators, and auditors to reconstruc
 
 # Current Architecture
 
-Currently, wallet balances act as the source of truth.
+Initially, wallet balances acted as the source of truth.
 
 ```text
 Transfer
@@ -78,13 +78,13 @@ Update Sender Balance
 Update Receiver Balance
 ```
 
-This approach is simple but makes it difficult to reconstruct historical financial state if balances become inconsistent.
+Although simple, this approach makes it difficult to reconstruct historical financial state if balances become inconsistent.
 
 ---
 
 # Target Architecture
 
-The system will gradually transition toward a ledger-based design.
+The wallet now records every successful transfer using double-entry accounting.
 
 ```text
 Transfer
@@ -96,17 +96,57 @@ Create Credit Ledger Entry
 Update Wallet Balance (Derived State)
 ```
 
-Each transfer will produce exactly two ledger entries:
+Each successful transfer produces exactly two immutable ledger entries:
 
-* One DEBIT entry
-* One CREDIT entry
+* One **DEBIT** entry for the sender.
+* One **CREDIT** entry for the receiver.
 
-The ledger will become the permanent financial record, while wallet balances will represent a cached summary of those historical events.
+The ledger becomes the permanent financial record, while wallet balances represent a cached summary of historical ledger activity.
+
+---
+
+# Transaction Lifecycle
+
+Every transfer is executed as a single atomic database transaction.
+
+```text
+Validate Request
+    ↓
+Load Sender Wallet
+    ↓
+Load Receiver Wallet
+    ↓
+Validate Business Rules
+    ↓
+Create Transfer
+    ↓
+Create Debit Ledger Entry
+    ↓
+Create Credit Ledger Entry
+    ↓
+Update Wallet Balances (Derived State)
+    ↓
+COMMIT
+```
+
+If any step fails, the transaction is rolled back and none of the changes are persisted.
+
+This guarantees that a transfer can never exist without its corresponding ledger entries and that partial financial updates are impossible.
+
+---
+
+# Transaction Ownership
+
+The `TransferService` owns the transaction boundary.
+
+Repositories are responsible only for persisting entities and executing queries. They never call `commit()` or `rollback()` independently.
+
+Centralizing transaction management inside the service ensures that creating the transfer, creating both ledger entries, and updating wallet balances all succeed or fail together as one business operation.
 
 ---
 
 # Design Decision
 
-**Wallet balances will transition from the source of truth to derived state.**
+**Wallet balances are treated as derived state, while the ledger is the financial source of truth.**
 
-This design improves financial correctness, auditability, and maintainability while aligning the application more closely with the architecture used in real financial systems.
+This design improves financial correctness, auditability, maintainability, and aligns the application more closely with the architecture used by real-world financial systems.

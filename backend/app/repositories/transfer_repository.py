@@ -13,8 +13,6 @@ class TransferRepository:
     ) -> Transfer:
 
         db.add(transfer)
-        db.commit()
-        db.refresh(transfer)
 
         return transfer
 

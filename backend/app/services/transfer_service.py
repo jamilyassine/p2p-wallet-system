@@ -9,8 +9,11 @@ from app.exceptions import (
     SelfTransferException,
     WalletNotFoundException,
 )
+from app.models.ledger_entry import LedgerEntry, LedgerEntryType
 from app.models.transfers import Transfer, TransferStatus
 from app.models.wallet import Wallet
+
+from app.repositories.ledger_repository import ledger_repository
 from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
 
@@ -22,46 +25,76 @@ def transfer_money(
     amount: Decimal,
 ) -> tuple[Wallet, Wallet]:
 
+    # -----------------------
+    # Business validation
+    # -----------------------
+
     if amount <= 0:
         raise InvalidTransferAmountException()
 
     if sender_id == receiver_id:
         raise SelfTransferException()
 
-    sender_wallet = wallet_repository.get_by_user_id(
-        db,
-        sender_id,
-    )
-
+    sender_wallet = wallet_repository.get_by_user_id(db, sender_id)
     if sender_wallet is None:
         raise WalletNotFoundException()
 
-    receiver_wallet = wallet_repository.get_by_user_id(
-        db,
-        receiver_id,
-    )
-
+    receiver_wallet = wallet_repository.get_by_user_id(db, receiver_id)
     if receiver_wallet is None:
         raise WalletNotFoundException()
 
     if sender_wallet.balance < amount:
         raise InsufficientBalanceException()
 
-    sender_wallet.balance -= amount
-    receiver_wallet.balance += amount
+    # -----------------------
+    # Atomic transaction
+    # -----------------------
 
-    transfer = Transfer(
-        sender_wallet_id=sender_wallet.id,
-        receiver_wallet_id=receiver_wallet.id,
-        amount=amount,
-        status=TransferStatus.SUCCESS,
-        completed_at=datetime.now(UTC),
-    )
+    try:
 
-    transfer_repository.create(
-        db,
-        transfer,
-    )
+        transfer = Transfer(
+                sender_wallet_id=sender_wallet.id,
+                receiver_wallet_id=receiver_wallet.id,
+                amount=amount,
+                status=TransferStatus.SUCCESS,
+                completed_at=datetime.now(UTC),
+        )
+
+        transfer_repository.create(
+            db,
+            transfer,
+        )
+
+        db.flush()
+
+
+        debit_entry = LedgerEntry(
+            wallet_id=sender_wallet.id,
+            transfer_id=transfer.id,
+            amount=amount,
+            entry_type=LedgerEntryType.DEBIT,
+        )
+
+        credit_entry = LedgerEntry(
+            wallet_id=receiver_wallet.id,
+            transfer_id=transfer.id,
+            amount=amount,
+            entry_type=LedgerEntryType.CREDIT,
+        )
+
+        ledger_repository.create(db, debit_entry)
+        ledger_repository.create(db, credit_entry)
+
+        db.flush()
+
+        sender_wallet.balance -= amount
+        receiver_wallet.balance += amount
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
     return (
         sender_wallet,
@@ -69,15 +102,13 @@ def transfer_money(
     )
 
 
+
 def get_transfers_by_user_id(
     db: Session,
     user_id: int,
 ) -> list[Transfer]:
 
-    wallet = wallet_repository.get_by_user_id(
-        db,
-        user_id,
-    )
+    wallet = wallet_repository.get_by_user_id(db, user_id)
 
     if wallet is None:
         raise WalletNotFoundException()
@@ -86,5 +117,3 @@ def get_transfers_by_user_id(
         db,
         wallet.id,
     )
-
-
