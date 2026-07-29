@@ -68,9 +68,16 @@ class Wallet(Base):
         back_populates="receiver_wallet",
     )
 
+    ledger_entries: Mapped[list["LedgerEntry"]] = relationship(
+        back_populates="wallet",
+    )
+
+
+
 
 if TYPE_CHECKING:
     from app.models.transfers import Transfer
     from app.models.user import User
+    from app.models.ledger_entry import LedgerEntry
 
     

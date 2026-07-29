@@ -10,6 +10,7 @@ from app.db.session import Base, DATABASE_URL
 from app.models.user import User
 from app.models.wallet import Wallet
 from app.models.transfers import Transfer
+from app.models.ledger_entry import LedgerEntry
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
