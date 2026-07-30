@@ -2,17 +2,50 @@
 
 ## Purpose
 
-This document explains the financial architecture of the wallet system and the reasoning behind the introduction of a ledger. Rather than storing financial truth directly in wallet balances, the application gradually transitions to an immutable ledger-based model inspired by real financial systems.
+This document describes the financial architecture of the P2P Wallet System and explains why the application adopts an immutable ledger-based model.
+
+Rather than treating wallet balances as the financial source of truth, the system records every financial event inside an append-only ledger inspired by real-world financial systems.
 
 ---
 
 # Why Ledgers Exist
 
-A wallet balance only represents the current state of an account. It does not explain how that balance was reached.
+A wallet balance only represents the current state of an account.
 
-A ledger records every financial event that changes an account. Instead of modifying history, new events are appended to the ledger. This provides a permanent record of all financial activity.
+It does **not** explain:
+
+* How the balance was reached.
+* Which transfers modified it.
+* When those changes occurred.
+
+A ledger records every financial event that affects an account.
+
+Instead of modifying historical records, new events are appended to the ledger.
 
 The ledger therefore becomes the authoritative source of financial truth.
+
+---
+
+# Ledger Relationships
+
+Every successful transfer produces exactly two ledger entries.
+
+```text id="8v1n6x"
+Transfer
+      │
+      ├──────────────┐
+      ▼              ▼
+Debit Entry     Credit Entry
+      │              │
+      ▼              ▼
+Sender Wallet  Receiver Wallet
+```
+
+Relationship summary:
+
+* One Transfer → Two Ledger Entries
+* One Ledger Entry → One Transfer
+* One Ledger Entry → One Wallet
 
 ---
 
@@ -22,25 +55,28 @@ The current wallet balance is simply the result of all historical ledger entries
 
 Conceptually:
 
-```text
+```text id="z3cjqk"
 Wallet Balance
-    =
+      =
 Sum of all Ledger Entries
 ```
 
-If wallet balances were lost or corrupted, they could be reconstructed by replaying the ledger.
+If wallet balances became corrupted or were accidentally deleted, they could be reconstructed by replaying the ledger.
 
-Because of this, balances are considered **derived state**, while the ledger remains the permanent financial record.
+Because of this:
+
+* **Ledger = Source of Truth**
+* **Wallet Balance = Derived State**
+
+Wallet balances are retained for performance but should never be considered the authoritative financial record.
 
 ---
 
 # Why Financial History Should Be Immutable
 
-Financial records should never be modified after they are created.
+Historical financial records should never be modified.
 
-Instead of updating or deleting historical records, corrections should be represented as new ledger entries.
-
-This preserves a complete history of financial activity and prevents the loss of important historical information.
+Instead of updating or deleting previous records, corrections are represented by creating new ledger entries.
 
 An append-only ledger provides:
 
@@ -53,28 +89,30 @@ An append-only ledger provides:
 
 # Why Auditability Matters
 
-A financial system should be able to answer questions such as:
+A financial system should always be able to answer questions such as:
 
-* Who transferred the money?
+* Who sent the money?
 * Who received it?
 * How much was transferred?
 * When did the transfer occur?
 
-These answers should be obtainable directly from the database without relying on application logs.
+These answers should be obtainable directly from persistent data without relying on application logs.
 
-An auditable system allows engineers, administrators, and auditors to reconstruct the complete financial history of an account from persistent data alone.
+An auditable system allows engineers, administrators, and auditors to reconstruct the complete financial history of every account.
 
 ---
 
 # Current Architecture
 
-Initially, wallet balances acted as the source of truth.
+Initially, wallet balances acted as the financial source of truth.
 
-```text
+```text id="ukzcw7"
 Transfer
-    ↓
+      │
+      ▼
 Update Sender Balance
-    ↓
+      │
+      ▼
 Update Receiver Balance
 ```
 
@@ -84,54 +122,82 @@ Although simple, this approach makes it difficult to reconstruct historical fina
 
 # Target Architecture
 
-The wallet now records every successful transfer using double-entry accounting.
+The application now records every successful transfer using double-entry accounting.
 
-```text
+```text id="44mwtm"
 Transfer
-    ↓
+      │
+      ▼
 Create Debit Ledger Entry
-    ↓
+      │
+      ▼
 Create Credit Ledger Entry
-    ↓
-Update Wallet Balance (Derived State)
+      │
+      ▼
+Update Wallet Balances
+(Derived State)
 ```
 
-Each successful transfer produces exactly two immutable ledger entries:
+Each successful transfer produces:
 
-* One **DEBIT** entry for the sender.
-* One **CREDIT** entry for the receiver.
+* One immutable **DEBIT** ledger entry.
+* One immutable **CREDIT** ledger entry.
 
-The ledger becomes the permanent financial record, while wallet balances represent a cached summary of historical ledger activity.
+The ledger becomes the permanent financial record while wallet balances represent a cached summary of historical activity.
 
 ---
 
 # Transaction Lifecycle
 
-Every transfer is executed as a single atomic database transaction.
+Every transfer executes inside a single atomic database transaction.
 
-```text
+```text id="p40z9k"
 Validate Request
-    ↓
+        │
+        ▼
 Load Sender Wallet
-    ↓
+        │
+        ▼
 Load Receiver Wallet
-    ↓
+        │
+        ▼
 Validate Business Rules
-    ↓
+        │
+        ▼
 Create Transfer
-    ↓
+        │
+        ▼
 Create Debit Ledger Entry
-    ↓
+        │
+        ▼
 Create Credit Ledger Entry
-    ↓
-Update Wallet Balances (Derived State)
-    ↓
+        │
+        ▼
+Update Wallet Balances
+        │
+        ▼
 COMMIT
 ```
 
 If any step fails, the transaction is rolled back and none of the changes are persisted.
 
-This guarantees that a transfer can never exist without its corresponding ledger entries and that partial financial updates are impossible.
+This guarantees that a transfer can never exist without its corresponding ledger entries.
+
+---
+
+# Financial Invariants
+
+The ledger must always satisfy the following rules.
+
+* Every successful transfer creates exactly two ledger entries.
+* Every transfer creates one DEBIT entry.
+* Every transfer creates one CREDIT entry.
+* Ledger entries are immutable.
+* Wallet balances are derived from ledger history.
+* Failed transfers create no ledger entries.
+* A transfer is persisted only after a successful COMMIT.
+
+These invariants guarantee financial correctness.
 
 ---
 
@@ -139,14 +205,29 @@ This guarantees that a transfer can never exist without its corresponding ledger
 
 The `TransferService` owns the transaction boundary.
 
-Repositories are responsible only for persisting entities and executing queries. They never call `commit()` or `rollback()` independently.
+Repositories are responsible only for persistence and queries.
 
-Centralizing transaction management inside the service ensures that creating the transfer, creating both ledger entries, and updating wallet balances all succeed or fail together as one business operation.
+Repositories never call:
+
+* `commit()`
+* `rollback()`
+
+Centralizing transaction management inside the service ensures that creating the transfer, creating both ledger entries, and updating wallet balances either all succeed or all fail together.
 
 ---
 
 # Design Decision
 
-**Wallet balances are treated as derived state, while the ledger is the financial source of truth.**
+The P2P Wallet System follows one fundamental design principle:
 
-This design improves financial correctness, auditability, maintainability, and aligns the application more closely with the architecture used by real-world financial systems.
+> **Wallet balances are treated as derived state, while the ledger is the permanent source of financial truth.**
+
+This design improves:
+
+* Financial correctness
+* Auditability
+* Maintainability
+* Transactional consistency
+* Long-term scalability
+
+and closely reflects the architecture used by real-world financial systems.

@@ -15,6 +15,10 @@ export default function Sidebar() {
         ? `/send-money?userId=${userId}`
         : "/send-money";
 
+    const ledgerHref = userId
+    ? `/ledger?userId=${userId}`
+    : "/ledger";
+
     return (
         <aside className="w-64 border-r p-4">
             <h2>P2P Wallet</h2>
@@ -40,7 +44,11 @@ export default function Sidebar() {
                     </li>
 
                     <li>History</li>
-                    <li>Ledger</li>
+                    <li>
+                        <Link href={ledgerHref}>
+                            Ledger
+                        </Link>
+                    </li>
                     <li>Profile</li>
                     <li>Settings</li>
                 </ul>
