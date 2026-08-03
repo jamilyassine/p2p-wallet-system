@@ -1,8 +1,12 @@
 import { LedgerEntry } from "@/types/ledger";
 
-export async function getLedgerEntries(
-    userId: number,
+export async function getWalletLedger(
+    walletId: number,
 ): Promise<LedgerEntry[]> {
-    // TODO: Implement when the backend ledger endpoint is available.
-    return [];
+    const response = await fetch(
+        `http://localhost:8000/ledger/wallet/${walletId}`
+    );
+
+    return response.json();
 }
+

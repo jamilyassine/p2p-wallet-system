@@ -10,9 +10,14 @@ export default function DashboardCard({
     value,
 }: DashboardCardProps) {
     return (
-        <section>
-            <h2>{title}</h2>
-            <div>{value}</div>
-        </section>
-    );
+    <section className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">
+            {title}
+        </h2>
+
+        <div>
+            {value}
+        </div>
+    </section>
+);
 }

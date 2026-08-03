@@ -8,7 +8,7 @@ export default function PageHeader({
     subtitle,
 }: PageHeaderProps) {
     return (
-        <header>
+        <header className="mb-8">
             <h1>{title}</h1>
 
             <p>{subtitle}</p>
