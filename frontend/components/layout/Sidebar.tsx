@@ -19,6 +19,10 @@ export default function Sidebar() {
     ? `/ledger?userId=${userId}`
     : "/ledger";
 
+    const historyHref = userId
+    ? `/history?userId=${userId}`
+    : "/history";
+
     return (
         <aside className="w-64 border-r p-4">
             <h2>P2P Wallet</h2>
@@ -43,7 +47,11 @@ export default function Sidebar() {
                         </Link>
                     </li>
 
-                    <li>History</li>
+                    <li>
+                        <Link href={historyHref}>
+                            History
+                        </Link>
+                    </li>
                     <li>
                         <Link href={ledgerHref}>
                             Ledger

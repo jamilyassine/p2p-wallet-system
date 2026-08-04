@@ -6,12 +6,11 @@ import { useSearchParams } from "next/navigation";
 import DashboardCard from "../../components/layout/DashboardCard";
 import DashboardLayout from "../../components/layout/DashboardLayout";
 import PageHeader from "../../components/layout/PageHeader";
-import { getWalletLedger } from "../../services/ledger";
 
 import type { UserResponse } from "../../types/user";
 import type { WalletResponse } from "../../types/wallet";
 import type { TransferRead } from "../../types/transfer";
-import type { LedgerEntry } from "../../types/ledger";
+import ActionCard from "../../components/layout/ActionCard";
 
 
 function DashboardContent() {
@@ -22,7 +21,14 @@ function DashboardContent() {
     const [wallet, setWallet] = useState<WalletResponse | null>(null);
     const [transfers, setTransfers] = useState<TransferRead[]>([]);
 
-    const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
+    const [users, setUsers] = useState<UserResponse[]>([]);
+
+    useEffect(() => {
+    fetch("http://localhost:8000/users")
+        .then((response) => response.json())
+        .then(setUsers);
+    }, []);
+
 
     useEffect(() => {
         if (!userId) return;
@@ -40,18 +46,7 @@ function DashboardContent() {
             .then(setWallet);
     }, [userId]);
 
-    useEffect(() => {
-        if (!wallet) return;
-
-        const walletId = wallet.id;
-
-        async function fetchLedger() {
-            const entries = await getWalletLedger(walletId);
-            setLedgerEntries(entries);
-        }
-
-        fetchLedger();
-    }, [wallet]);
+    
 
     
 
@@ -137,16 +132,7 @@ function DashboardContent() {
         </table>
     );
 
-    const totalDebits = ledgerEntries
-    .filter((entry) => entry.entry_type === "DEBIT")
-    .reduce((sum, entry) => sum + Number(entry.amount), 0);
-
-    const totalCredits = ledgerEntries
-    .filter((entry) => entry.entry_type === "CREDIT")
-    .reduce((sum, entry) => sum + Number(entry.amount), 0);
-
-    const ledgerEntryCount = ledgerEntries.length;
-
+    
 
     return (
         <DashboardLayout>
@@ -159,7 +145,7 @@ function DashboardContent() {
                 }
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="mb-6">
                 <DashboardCard
                     title="Total Balance"
                     value={
@@ -176,21 +162,24 @@ function DashboardContent() {
                         )
                     }
                 />
+            </div>
 
-                <DashboardCard
-                title="Ledger Summary"
-                value={
-                    <>
-                    <div>Total Debits: ${totalDebits}</div>
-                    <div>Total Credits: ${totalCredits}</div>
-                    <div>Ledger Entries: {ledgerEntryCount}</div>
-                    </>
-                }
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+
+                <ActionCard
+                    title="Send Money"
+                    description="Transfer money to another wallet"
+                    href={`/send-money?userId=${userId}`}
+                />
+
+                <ActionCard
+                    title="Transfer History"
+                    description="View your previous transfers"
+                    href={`/history?userId=${userId}`}
+                />
 
             </div>
 
-            
 
             <DashboardCard
                 title="Recent Transactions"
