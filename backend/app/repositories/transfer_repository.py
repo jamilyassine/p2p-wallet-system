@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from uuid import UUID
 
 from app.models.transfers import Transfer
 
@@ -33,8 +34,21 @@ class TransferRepository:
             .order_by(Transfer.created_at.desc())
             .all()
         )
+    
+    def get_by_request_id(
+        self,
+        db: Session,
+        request_id: UUID,
+    ) -> Transfer | None:
+        return (
+            db.query(Transfer)
+            .filter(Transfer.request_id == request_id)
+            .first()
+        )
 
 transfer_repository = TransferRepository()
+
+
 
 
 

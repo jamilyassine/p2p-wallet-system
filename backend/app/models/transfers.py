@@ -34,7 +34,6 @@ class Transfer(Base):
 
     request_id: Mapped[UUID] = mapped_column(
         UUID(as_uuid=True),
-        default=uuid4,
         unique=True,
         nullable=False,
     )

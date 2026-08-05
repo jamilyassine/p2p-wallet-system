@@ -2,7 +2,7 @@
 
 A production-oriented **Peer-to-Peer Digital Wallet** built with **FastAPI**, **PostgreSQL**, **SQLAlchemy**, **Alembic**, and **Next.js**.
 
-This project is part of my software engineering portfolio and demonstrates modern backend engineering practices including layered architecture, repository and service patterns, database transactions, immutable financial ledgers, and production-oriented application design.
+This project is part of my software engineering portfolio and demonstrates modern backend engineering practices including layered architecture, repository and service patterns, database transactions, immutable financial ledgers, retry-safe API design through idempotency, and production-oriented application design.
 
 ---
 

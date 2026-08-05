@@ -28,6 +28,7 @@ def create_transfer_endpoint(
     ):
     sender_wallet, receiver_wallet = transfer_service.transfer_money(
         db=db,
+        request_id=request.request_id,
         sender_id=request.sender_id,
         receiver_id=request.receiver_id,
         amount=request.amount,
