@@ -18,39 +18,46 @@ function SendMoneyContent() {
     } | null>(null);
 
     const [errorMessage, setErrorMessage] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
     async function handleSubmit(event: FormEvent) {
         event.preventDefault();
 
         setErrorMessage("");
         setTransferResult(null);
+        setIsLoading(true);
+        try{
+            const response = await fetch(
+                "http://127.0.0.1:8000/transfers/",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        request_id:crypto.randomUUID(),
+                        sender_id: Number(senderId),
+                        receiver_id: Number(receiverId),
+                        amount: Number(amount),
+                    }),
+                }
+            );
 
-        const response = await fetch(
-            "http://127.0.0.1:8000/transfers/",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    sender_id: Number(senderId),
-                    receiver_id: Number(receiverId),
-                    amount: Number(amount),
-                }),
+            const data = await response.json();
+
+            if (response.ok) {
+                setTransferResult(data);
+                return;
             }
-        );
 
-        const data = await response.json();
-
-        if (response.ok) {
-            setTransferResult(data);
-            return;
+            setErrorMessage(
+                data.error ?? "An unexpected error occurred."
+                );
+            }
+        finally {
+            setIsLoading(false);
         }
-
-        setErrorMessage(
-            data.error ?? "An unexpected error occurred."
-        );
-    }
+}
 
     return (
         <main>
@@ -102,29 +109,26 @@ function SendMoneyContent() {
                     />
                 </div>
 
-                <button type="submit">
-                    Send Money
+                <button
+                    type="submit"
+                    disabled={isLoading}
+                >
+                    {isLoading ? "Sending..." : "Send Money"}
                 </button>
 
                 {errorMessage && (
-                    <p>{errorMessage}</p>
+                    <p className="text-red-600">
+                        {errorMessage}
+                    </p>
                 )}
 
+
                 {transferResult && (
-                    <div>
-                        <h2>
-                            Transfer completed successfully!
-                        </h2>
+                    <div className="text-green-600">
+                        <h2>Transfer completed successfully!</h2>
 
-                        <p>
-                            Sender Balance:{" "}
-                            {transferResult.sender_balance}
-                        </p>
-
-                        <p>
-                            Receiver Balance:{" "}
-                            {transferResult.receiver_balance}
-                        </p>
+                        <p>Sender Balance: {transferResult.sender_balance}</p>
+                        <p>Receiver Balance: {transferResult.receiver_balance}</p>
                     </div>
                 )}
             </form>
