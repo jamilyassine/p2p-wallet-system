@@ -83,8 +83,8 @@ function HistoryContent() {
                                     const type = isOutgoing ? "To" : "From";
 
                                     const counterparty = isOutgoing
-                                        ? `Wallet ${transfer.receiver_wallet_id}`
-                                        : `Wallet ${transfer.sender_wallet_id}`;
+                                    ? transfer.receiver_name
+                                    : transfer.sender_name;
 
                                     return (
                                         <tr key={transfer.id}>

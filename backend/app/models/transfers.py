@@ -94,9 +94,19 @@ class Transfer(Base):
         back_populates="transfer",
     )
 
+    @property
+    def sender_name(self) -> str:
+        return self.sender_wallet.user.name
+
+    @property
+    def receiver_name(self) -> str:
+        return self.receiver_wallet.user.name
+
 
 
 
 if TYPE_CHECKING:
     from app.models.wallet import Wallet
     from app.models.ledger_entry import LedgerEntry
+
+

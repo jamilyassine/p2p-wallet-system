@@ -43,6 +43,43 @@ def _validate_business_invariants(
 
     return sender_wallet, receiver_wallet
 
+
+def _create_ledger_entries(
+    db: Session,
+    transfer_id: int,
+    sender_wallet_id: int,
+    receiver_wallet_id: int,
+    amount: Decimal,
+) -> None:
+    debit_entry = LedgerEntry(
+        wallet_id=sender_wallet_id,
+        transfer_id=transfer_id,
+        amount=amount,
+        entry_type=LedgerEntryType.DEBIT,
+    )
+
+    credit_entry = LedgerEntry(
+        wallet_id=receiver_wallet_id,
+        transfer_id=transfer_id,
+        amount=amount,
+        entry_type=LedgerEntryType.CREDIT,
+    )
+
+    ledger_repository.create(db, debit_entry)
+    ledger_repository.create(db, credit_entry)
+
+
+def _apply_transfer(
+        sender_wallet:Wallet,
+        receiver_wallet:Wallet,
+        amount:Decimal,
+    ) -> None:
+
+    sender_wallet.balance -= amount
+    receiver_wallet.balance += amount
+
+
+
 def transfer_money(
     db: Session,
     sender_id: int,
@@ -54,7 +91,7 @@ def transfer_money(
     transfer = transfer_repository.get_by_request_id(db,request_id)
 
     if transfer is not None:
-        return(transfer.sender_wallet,transfer.receiver_wallet)
+        return transfer.sender_wallet, transfer.receiver_wallet
     
     sender_wallet, receiver_wallet = _validate_business_invariants(
         db,
@@ -86,27 +123,23 @@ def transfer_money(
         db.flush()
 
 
-        debit_entry = LedgerEntry(
-            wallet_id=sender_wallet.id,
-            transfer_id=transfer.id,
-            amount=amount,
-            entry_type=LedgerEntryType.DEBIT,
+        _create_ledger_entries(
+            db,
+            transfer.id,
+            sender_wallet.id,
+            receiver_wallet.id,
+            amount,
         )
-
-        credit_entry = LedgerEntry(
-            wallet_id=receiver_wallet.id,
-            transfer_id=transfer.id,
-            amount=amount,
-            entry_type=LedgerEntryType.CREDIT,
-        )
-
-        ledger_repository.create(db, debit_entry)
-        ledger_repository.create(db, credit_entry)
 
         db.flush()
 
-        sender_wallet.balance -= amount
-        receiver_wallet.balance += amount
+
+        _apply_transfer(
+            sender_wallet,
+            receiver_wallet,
+            amount,
+        )
+    
 
         db.commit()
 
@@ -114,10 +147,7 @@ def transfer_money(
         db.rollback()
         raise
 
-    return (
-        sender_wallet,
-        receiver_wallet,
-    )
+    return sender_wallet, receiver_wallet
 
 
 

@@ -20,6 +20,8 @@ class TransferRead(BaseModel):
     id: int
     sender_wallet_id: int
     receiver_wallet_id: int
+    sender_name: str
+    receiver_name: str
     amount: Decimal
     status: str
     created_at: datetime

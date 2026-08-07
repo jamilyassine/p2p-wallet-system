@@ -69,10 +69,10 @@ function DashboardContent() {
                         ID
                     </th>
                     <th className="text-left border-b px-2 py-2 font-semibold">
-                        Sender
+                        Type
                     </th>
                     <th className="text-left border-b px-2 py-2 font-semibold">
-                        Receiver
+                        CounterParty
                     </th>
                     <th className="text-left border-b px-2 py-2 font-semibold">
                         Amount
@@ -87,48 +87,74 @@ function DashboardContent() {
             </thead>
 
             <tbody>
-                {transfers.map((transfer) => (
-                    <tr key={transfer.id}>
-                        <td className="border-b px-2 py-2">
-                            {transfer.id}
-                        </td>
+                {transfers.map((transfer) => {
+                    const isOutgoing =
+                        transfer.sender_wallet_id === wallet?.id;
 
-                        <td className="border-b px-2 py-2">
-                            Wallet {transfer.sender_wallet_id}
-                        </td>
+                    const type = isOutgoing ? "To" : "From";
 
-                        <td className="border-b px-2 py-2">
-                            Wallet {transfer.receiver_wallet_id}
-                        </td>
+                    const counterparty = isOutgoing
+                        ? transfer.receiver_name
+                        : transfer.sender_name;
 
-                        <td className="border-b px-2 py-2">
-                            ${transfer.amount}
-                        </td>
+                    return (
+                        <tr key={transfer.id}>
+                            <td className="border-b px-2 py-2">
+                                {transfer.id}
+                            </td>
 
-                        <td className="border-b px-2 py-2">
-                            <span
-                            className={`inline-block rounded-full px-3 py-1 text-sm font-medium ${
-                            transfer.status === "SUCCESS"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                            }`}
-                            >
-                            {transfer.status}
-                            </span>
-                        </td>
+                            <td className="border-b px-2 py-2">
+                                <span
+                                    className={`inline-block rounded-full px-3 py-1 text-sm font-medium ${
+                                        isOutgoing
+                                            ? "bg-red-100 text-red-700"
+                                            : "bg-green-100 text-green-700"
+                                    }`}
+                                >
+                                    {type}
+                                </span>
+                            </td>
 
-                        <td className="border-b px-2 py-2">
-                            {new Date(transfer.created_at).toLocaleDateString("en-GB", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                            })}
-                        </td>
-                    </tr>
-                ))}
-            </tbody>
+                            <td className="border-b px-2 py-2">
+                                {counterparty}
+                            </td>
+
+                            <td className="border-b px-2 py-2">
+                                $
+                                {Number(transfer.amount).toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                })}
+                            </td>
+
+                            <td className="border-b px-2 py-2">
+                                <span
+                                    className={`inline-block rounded-full px-3 py-1 text-sm font-medium ${
+                                        transfer.status === "SUCCESS"
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-red-100 text-red-700"
+                                    }`}
+                                >
+                                    {transfer.status}
+                                </span>
+                            </td>
+
+                            <td className="border-b px-2 py-2">
+                                {new Date(transfer.created_at).toLocaleDateString(
+                                    "en-GB",
+                                    {
+                                        day: "2-digit",
+                                        month: "short",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    }
+                                )}
+                            </td>
+                        </tr>
+                    );
+                })}
+                </tbody>
         </table>
     );
 

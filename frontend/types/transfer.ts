@@ -4,5 +4,8 @@ export interface TransferRead {
     receiver_wallet_id: number;
     amount: number;
     status: string;
+    sender_name: string;
+    receiver_name: string;
     created_at: string;
+
 }
