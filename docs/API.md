@@ -113,6 +113,18 @@ The operation executes as a single database transaction.
 * Both wallets must exist.
 * Sender must have sufficient balance.
 
+### Idempotency
+
+Each transfer request must include a unique `request_id`.
+
+If the same `request_id` is submitted again, the API returns the existing transfer instead of executing a second transfer.
+
+This makes client retries safe.
+
+A repeated `request_id` represents a retry of the same logical request, not a new business operation.
+
+To perform a new transfer, the client must generate a new `request_id`.
+
 ---
 
 ## Get User Transfer History
@@ -243,3 +255,4 @@ Examples include:
 * Insufficient balance
 
 All errors are handled centrally through FastAPI exception handlers to ensure consistent API responses.
+

@@ -108,6 +108,65 @@ If any operation fails, the transaction is rolled back and none of the changes a
 
 ---
 
+# Idempotent Transfer Architecture
+
+The transfer workflow uses an idempotency key (`request_id`) to ensure that retries of the same request do not produce duplicate financial effects.
+
+```text
+Client
+    │
+    │ request_id
+    ▼
+Transfer Endpoint
+    │
+    ▼
+TransferService
+    │
+    ▼
+Check Existing request_id
+    │
+    ├─────────────── Exists
+    │                    │
+    │                    ▼
+    │              Return Existing Transfer
+    │
+    │
+    └─────────────── Does Not Exist
+                         │
+                         ▼
+                  Validate Business Rules
+                         │
+                         ▼
+                  BEGIN TRANSACTION
+                         │
+                         ├─────────────── Create Transfer
+                         │
+                         ├─────────────── Create Debit Ledger Entry
+                         │
+                         ├─────────────── Create Credit Ledger Entry
+                         │
+                         ├─────────────── Update Sender Balance
+                         │
+                         ├─────────────── Update Receiver Balance
+                         │
+                         ▼
+                  Store request_id
+                         │
+                         ▼
+                      COMMIT
+                         │
+                         ▼
+                 Return Transfer Result
+```
+
+The `request_id` is associated with the transfer and acts as the idempotency boundary.
+
+If the same `request_id` is received again, the existing transfer is returned instead of executing the financial operation again.
+
+This ensures that a client retry cannot create a second transfer or move money twice.
+
+---
+
 # Layer Dependencies
 
 ```text
@@ -164,6 +223,7 @@ Responsibilities include:
 * Transaction boundaries
 * Domain workflows
 * Error propagation
+* Idempotency handling
 
 Services own all database transactions.
 
@@ -227,6 +287,7 @@ The architecture emphasizes:
 * Service Layer Pattern
 * Transactional Consistency
 * Financial Correctness
+* Idempotent Execution
 * Maintainability
 * Extensibility
 * Auditability
