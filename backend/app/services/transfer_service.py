@@ -19,25 +19,38 @@ from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
 
 def _validate_business_invariants(
-    db: Session ,
-    sender_id: int ,
-    receiver_id: int
-    ,amount: Decimal)-> tuple[Wallet, Wallet]:
-    
+    db: Session,
+    sender_id: int,
+    receiver_id: int,
+    amount: Decimal,
+) -> tuple[Wallet, Wallet]:
+
     if amount <= 0:
         raise InvalidTransferAmountException()
 
     if sender_id == receiver_id:
         raise SelfTransferException()
 
-    sender_wallet = wallet_repository.get_by_user_id(db, sender_id)
-    if sender_wallet is None:
-        raise WalletNotFoundException()
+    # Lock both wallets in deterministic user ID order
+    wallet_ids = sorted([sender_id, receiver_id])
 
-    receiver_wallet = wallet_repository.get_by_user_id(db, receiver_id)
-    if receiver_wallet is None:
-        raise WalletNotFoundException()
+    wallets = {}
 
+    for user_id in wallet_ids:
+        wallet = wallet_repository.get_by_user_id_for_update(
+            db,
+            user_id,
+        )
+
+        if wallet is None:
+            raise WalletNotFoundException()
+
+        wallets[user_id] = wallet
+
+    sender_wallet = wallets[sender_id]
+    receiver_wallet = wallets[receiver_id]
+
+    # Balance validation happens after both wallets are locked
     if sender_wallet.balance < amount:
         raise InsufficientBalanceException()
 
@@ -85,34 +98,40 @@ def transfer_money(
     sender_id: int,
     receiver_id: int,
     amount: Decimal,
-    request_id:UUID,
+    request_id: UUID,
 ) -> tuple[Wallet, Wallet]:
 
-    transfer = transfer_repository.get_by_request_id(db,request_id)
+    with db.begin():
 
-    if transfer is not None:
-        return transfer.sender_wallet, transfer.receiver_wallet
-    
-    sender_wallet, receiver_wallet = _validate_business_invariants(
-        db,
-        sender_id,
-        receiver_id,
-        amount
-    )
+        # Idempotency check
+        transfer = transfer_repository.get_by_request_id(
+            db,
+            request_id,
+        )
 
-    # -----------------------
-    # Atomic transaction
-    # -----------------------
+        if transfer is not None:
+            return (
+                transfer.sender_wallet,
+                transfer.receiver_wallet,
+            )
 
-    try:
+        # Validate business invariants
+        # Wallets are locked inside this function
+        sender_wallet, receiver_wallet = _validate_business_invariants(
+            db,
+            sender_id,
+            receiver_id,
+            amount,
+        )
 
+        # Create transfer
         transfer = Transfer(
-                request_id=request_id,
-                sender_wallet_id=sender_wallet.id,
-                receiver_wallet_id=receiver_wallet.id,
-                amount=amount,
-                status=TransferStatus.SUCCESS,
-                completed_at=datetime.now(UTC),
+            request_id=request_id,
+            sender_wallet_id=sender_wallet.id,
+            receiver_wallet_id=receiver_wallet.id,
+            amount=amount,
+            status=TransferStatus.SUCCESS,
+            completed_at=datetime.now(UTC),
         )
 
         transfer_repository.create(
@@ -122,7 +141,7 @@ def transfer_money(
 
         db.flush()
 
-
+        # Create ledger entries
         _create_ledger_entries(
             db,
             transfer.id,
@@ -133,19 +152,12 @@ def transfer_money(
 
         db.flush()
 
-
+        # Apply balance changes
         _apply_transfer(
             sender_wallet,
             receiver_wallet,
             amount,
         )
-    
-
-        db.commit()
-
-    except Exception:
-        db.rollback()
-        raise
 
     return sender_wallet, receiver_wallet
 

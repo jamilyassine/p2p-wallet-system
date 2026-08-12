@@ -75,6 +75,8 @@ JSON Response
 
 Money transfers execute as a single atomic database transaction.
 
+The transfer also uses **pessimistic row-level locking** to protect wallet balance decisions under concurrent execution.
+
 ```text
 Client
     │
@@ -86,6 +88,14 @@ TransferService
     │
     ▼
 BEGIN TRANSACTION
+    │
+    ├─────────────── Check Idempotency
+    │
+    ├─────────────── Lock Sender Wallet
+    │
+    ├─────────────── Lock Receiver Wallet
+    │
+    ├─────────────── Validate Sender Balance
     │
     ├─────────────── Create Transfer
     │
@@ -104,13 +114,90 @@ COMMIT
 PostgreSQL
 ```
 
-If any operation fails, the transaction is rolled back and none of the changes are persisted.
+Wallet locks are acquired using:
+
+```python
+.with_for_update()
+```
+
+which corresponds to PostgreSQL's:
+
+```sql
+SELECT ... FOR UPDATE
+```
+
+The locks are acquired **before the balance validation** and remain held until the transaction commits or rolls back.
+
+If any operation fails, the transaction is rolled back and none of the financial changes are persisted.
+
+---
+
+# Pessimistic Locking
+
+The transfer locks both wallets involved in the operation:
+
+```text
+Sender Wallet
+      │
+      ├── FOR UPDATE
+      │
+      ▼
+Receiver Wallet
+      │
+      └── FOR UPDATE
+```
+
+The locks are acquired in **deterministic wallet ID order**.
+
+Conceptually:
+
+```text
+Wallet IDs
+    │
+    ▼
+Sort IDs
+    │
+    ▼
+Lock lower ID
+    │
+    ▼
+Lock higher ID
+```
+
+Deterministic ordering reduces the risk of deadlocks when multiple transactions attempt to lock the same wallets in opposite directions.
+
+If another transaction attempts to acquire a lock already held by the current transaction, PostgreSQL blocks the competing transaction until the first transaction completes.
+
+```text
+Transaction A                  Transaction B
+      │                              │
+      ▼                              ▼
+LOCK Wallet 1                  LOCK Wallet 1
+      │                              │
+      │                         WAIT / BLOCK
+      ▼                              │
+Validate balance                    │
+      │                              │
+Update balances                     │
+      │                              │
+COMMIT                              │
+                                     ▼
+                              Lock acquired
+                                     │
+                              Read current state
+                                     │
+                              Validate balance
+```
+
+This prevents concurrent transfers from making balance decisions against the same unlocked wallet state.
 
 ---
 
 # Idempotent Transfer Architecture
 
 The transfer workflow uses an idempotency key (`request_id`) to ensure that retries of the same request do not produce duplicate financial effects.
+
+The idempotency check occurs inside the same database transaction as the financial operation.
 
 ```text
 Client
@@ -121,6 +208,9 @@ Transfer Endpoint
     │
     ▼
 TransferService
+    │
+    ▼
+BEGIN TRANSACTION
     │
     ▼
 Check Existing request_id
@@ -134,12 +224,13 @@ Check Existing request_id
     └─────────────── Does Not Exist
                          │
                          ▼
+                  Lock Wallets
+                         │
+                         ▼
                   Validate Business Rules
                          │
                          ▼
-                  BEGIN TRANSACTION
-                         │
-                         ├─────────────── Create Transfer
+                  Create Transfer
                          │
                          ├─────────────── Create Debit Ledger Entry
                          │
@@ -148,9 +239,6 @@ Check Existing request_id
                          ├─────────────── Update Sender Balance
                          │
                          ├─────────────── Update Receiver Balance
-                         │
-                         ▼
-                  Store request_id
                          │
                          ▼
                       COMMIT
@@ -163,7 +251,7 @@ The `request_id` is associated with the transfer and acts as the idempotency bou
 
 If the same `request_id` is received again, the existing transfer is returned instead of executing the financial operation again.
 
-This ensures that a client retry cannot create a second transfer or move money twice.
+The database uniqueness constraint on `request_id` provides database-level protection against duplicate transfer records when concurrent requests use the same idempotency key.
 
 ---
 
@@ -208,6 +296,7 @@ Responsibilities include:
 * Querying entities
 * Updating entities
 * Database-specific operations
+* Applying database-specific locking mechanisms such as `FOR UPDATE`
 
 Repositories never implement business rules.
 
@@ -224,6 +313,7 @@ Responsibilities include:
 * Domain workflows
 * Error propagation
 * Idempotency handling
+* Coordinating concurrency control
 
 Services own all database transactions.
 
@@ -235,6 +325,13 @@ A transfer is executed as one atomic transaction.
 
 ```text
 BEGIN
+
+Check Idempotency
+
+Lock Sender Wallet
+Lock Receiver Wallet
+
+Validate Balance
 
 Create Transfer
 
@@ -249,7 +346,26 @@ Update Receiver Balance
 COMMIT
 ```
 
-If the transaction cannot complete successfully, PostgreSQL rolls back every modification.
+If the transaction cannot complete successfully:
+
+```text
+BEGIN
+    │
+    ├── Financial operations
+    │
+    └── Exception
+          │
+          ▼
+       ROLLBACK
+```
+
+PostgreSQL rolls back every uncommitted modification.
+
+The wallet row locks are also released when the transaction ends.
+
+Therefore:
+
+> The wallet locks, balance decision, transfer record, ledger entries, and wallet changes participate in the same transaction.
 
 ---
 
@@ -276,6 +392,85 @@ Wallet balances are treated as derived state for performance.
 
 ---
 
+# Atomicity vs Concurrency Control
+
+The architecture uses both mechanisms because they solve different problems.
+
+### Atomicity
+
+Ensures that:
+
+```text
+Transfer
++
+Debit Ledger Entry
++
+Credit Ledger Entry
++
+Wallet Balance Changes
+        ↓
+all commit
+OR
+all rollback
+```
+
+### Concurrency Control
+
+Ensures that:
+
+```text
+Concurrent transfers
+        ↓
+cannot make unsafe balance decisions
+against the same unlocked wallet state
+```
+
+Therefore:
+
+> **Atomicity protects the integrity of an individual transaction.**
+
+> **Pessimistic locking protects correctness when transactions compete concurrently.**
+
+---
+
+# Concurrency Verification
+
+The concurrency implementation is verified through an integration test that executes two concurrent transfers against the same sender wallet.
+
+Initial state:
+
+```text
+Sender       = $100
+Receiver 1   = $0
+Receiver 2   = $0
+```
+
+Concurrent operations:
+
+```text
+Sender → Receiver 1 : $80
+Sender → Receiver 2 : $80
+```
+
+Expected result:
+
+```text
+One transfer  → SUCCESS
+One transfer  → INSUFFICIENT BALANCE
+```
+
+The final state must preserve the financial invariant:
+
+```text
+Sender       = $20
+One receiver = $80
+Other receiver = $0
+```
+
+This verifies that pessimistic wallet locking protects the balance decision under concurrent execution.
+
+---
+
 # Engineering Principles
 
 The architecture emphasizes:
@@ -288,6 +483,9 @@ The architecture emphasizes:
 * Transactional Consistency
 * Financial Correctness
 * Idempotent Execution
+* Pessimistic Concurrency Control
+* Row-Level Locking
+* Deterministic Lock Ordering
 * Maintainability
 * Extensibility
 * Auditability

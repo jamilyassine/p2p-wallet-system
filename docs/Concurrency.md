@@ -2,9 +2,9 @@
 
 ## Overview
 
-This document explains the concurrency risks in the P2P Wallet System.
+This document explains the concurrency risks in the P2P Wallet System and the database-level mechanism used to prevent unsafe concurrent balance decisions.
 
-The current transfer implementation is **transactionally atomic**, but it is not yet fully **concurrency-safe**.
+The transfer implementation is **transactionally atomic** and now uses **pessimistic row-level locking** to protect the wallet balance decision.
 
 The key distinction is:
 
@@ -33,7 +33,7 @@ Both requests execute concurrently.
 
 # 2. The Balance Race
 
-The current transfer flow performs:
+Without concurrency control, the transfer flow can perform:
 
 ```text
 Read wallet
@@ -45,7 +45,7 @@ Check balance >= transfer amount
 Later update balance
 ```
 
-The problem is that another transaction can access the same wallet between the balance read and the balance update.
+The problem is that another transaction can access the same wallet before the balance decision is protected.
 
 For example:
 
@@ -91,20 +91,6 @@ B calculates: $100 - $80 = $20
 Both attempt to persist their result.
 ```
 
-The final balance can therefore fail to represent the total financial activity that occurred.
-
-For example:
-
-```text
-Initial balance:       $100
-Transfer A:             $80
-Transfer B:             $80
-Total debits:          $160
-
-Expected balance:      -$60
-Possible stored value:  $20
-```
-
 The important problem is not merely the final number.
 
 The system may now have inconsistent financial state between:
@@ -143,7 +129,7 @@ The problem appears when requests execute concurrently:
 
 ```text
 Transfer A ────────────────┐
-                            ├── both observe $100
+                            ├── both could observe $100
 Transfer B ────────────────┘
 ```
 
@@ -153,7 +139,190 @@ Therefore:
 
 ---
 
-# 5. Idempotency vs Concurrency
+# 5. Pessimistic Locking
+
+Pessimistic locking assumes that concurrent conflicts are possible and protects the relevant database rows before making a correctness-critical decision.
+
+The wallet transfer uses PostgreSQL row-level locking through SQLAlchemy:
+
+```python
+.with_for_update()
+```
+
+which corresponds conceptually to:
+
+```sql
+SELECT ...
+FROM wallets
+WHERE ...
+FOR UPDATE;
+```
+
+The important sequence is:
+
+```text
+Begin transaction
+      ↓
+SELECT wallet ... FOR UPDATE
+      ↓
+Acquire row lock
+      ↓
+Check balance
+      ↓
+Modify wallet
+      ↓
+Commit
+```
+
+The lock is held by the transaction until the transaction completes.
+
+---
+
+# 6. Locking Both Wallets
+
+A transfer modifies two wallets:
+
+```text
+Sender wallet   → debit
+Receiver wallet → credit
+```
+
+Therefore, both wallet rows are locked.
+
+The implementation acquires the locks in **deterministic ID order**:
+
+```text
+wallet IDs
+    ↓
+sort IDs
+    ↓
+lock lower ID
+    ↓
+lock higher ID
+```
+
+Conceptually:
+
+```text
+Transaction A:
+Wallet 1 → Wallet 2
+
+Transaction B:
+Wallet 1 → Wallet 2
+```
+
+Both transactions therefore attempt to acquire the same rows in the same order.
+
+This reduces the risk of deadlocks caused by inconsistent lock ordering.
+
+---
+
+# 7. Lock Timing
+
+The wallet rows must be locked **before the balance is validated**.
+
+The critical sequence is:
+
+```text
+BEGIN TRANSACTION
+       ↓
+LOCK sender + receiver
+       ↓
+Validate balance
+       ↓
+Create transfer
+       ↓
+Create ledger entries
+       ↓
+Update balances
+       ↓
+COMMIT
+```
+
+This is essential because locking the wallet after checking its balance would leave the correctness-critical decision unprotected.
+
+---
+
+# 8. Blocking Behavior
+
+When one transaction already holds a row lock, another transaction attempting to acquire the same lock must wait.
+
+Example:
+
+```text
+Transaction A                  Transaction B
+
+BEGIN                          BEGIN
+  ↓                              ↓
+LOCK wallet                     LOCK wallet
+  ↓                              ↓
+Lock acquired                   WAIT
+  ↓
+Check balance
+  ↓
+Update balance
+  ↓
+COMMIT
+                                 ↓
+                              Lock acquired
+                                 ↓
+                              Read current balance
+                                 ↓
+                              Validate balance
+```
+
+This is the mechanism that prevents both transactions from making their balance decision against the same unlocked wallet state.
+
+---
+
+# 9. Transaction Boundary
+
+The entire financial operation is executed inside one database transaction:
+
+```python
+with db.begin():
+    ...
+```
+
+Conceptually:
+
+```text
+with db.begin()
+      ↓
+Idempotency check
+      ↓
+Lock sender + receiver
+      ↓
+Validate balance
+      ↓
+Create transfer
+      ↓
+Create ledger entries
+      ↓
+Update wallet balances
+      ↓
+COMMIT
+```
+
+If an exception occurs inside the block:
+
+```text
+with db.begin()
+      ↓
+Exception
+      ↓
+ROLLBACK
+```
+
+Therefore:
+
+> The wallet locks, balance decision, transfer record, ledger entries, and wallet changes participate in the same transaction.
+
+This is important because PostgreSQL row locks are held until the transaction ends.
+
+---
+
+# 10. Idempotency vs Concurrency
 
 These are different problems.
 
@@ -181,21 +350,9 @@ Existing transfer found
 Do not execute again
 ```
 
-However, a simple:
+A database uniqueness constraint on `request_id` provides database-level protection against duplicate transfer records.
 
-```text
-SELECT request_id
-```
-
-followed by:
-
-```text
-INSERT transfer
-```
-
-can itself have a concurrency race if two requests with the same `request_id` arrive simultaneously.
-
-Therefore, idempotency ultimately requires database-level protection such as a unique constraint on `request_id`.
+Two concurrent requests with the same `request_id` may both initially find no existing transfer, but the unique constraint protects the eventual write.
 
 ---
 
@@ -218,9 +375,9 @@ The balance race is therefore a **concurrency-control problem**, not an idempote
 
 ---
 
-# 6. Correctness-Critical Reads
+# 11. Correctness-Critical Reads
 
-The following reads participate in transfer correctness.
+The transfer contains several important reads.
 
 ### Idempotency lookup
 
@@ -234,29 +391,22 @@ Purpose:
 Determine whether this request has already been processed.
 ```
 
-### Sender wallet lookup
+### Locked wallet lookup
 
 ```python
-wallet_repository.get_by_user_id(db, sender_id)
+wallet_repository.get_by_user_id_for_update(
+    db,
+    user_id,
+)
 ```
 
 Purpose:
 
 ```text
-Identify the wallet whose balance will be debited.
+Identify the wallet and acquire its row lock.
 ```
 
-### Receiver wallet lookup
-
-```python
-wallet_repository.get_by_user_id(db, receiver_id)
-```
-
-Purpose:
-
-```text
-Identify the wallet that will be credited.
-```
+Both the sender and receiver wallets are loaded this way.
 
 ### Balance check
 
@@ -271,51 +421,56 @@ Purpose:
 Ensure the sender has sufficient funds.
 ```
 
-The balance check is the most important concurrency-sensitive operation because the decision depends on mutable shared state.
+The balance check occurs **after the wallet locks have been acquired**.
 
 ---
 
-# 7. Current Transactional Behavior
+# 12. Atomicity and Concurrency Control Solve Different Problems
 
-The current transfer performs its financial writes within one database transaction.
+The transfer combines two important mechanisms.
 
-Conceptually:
+### Atomicity
+
+Ensures:
 
 ```text
-Transfer INSERT
-       +
-Debit Ledger INSERT
-       +
-Credit Ledger INSERT
-       +
-Sender Balance UPDATE
-       +
-Receiver Balance UPDATE
-       ↓
-     COMMIT
+Transfer
++
+Debit ledger entry
++
+Credit ledger entry
++
+Wallet balance changes
+        ↓
+all commit
+OR
+all rollback
 ```
 
-If an error occurs after the transaction begins and before commit:
+### Concurrency control
 
-```python
-db.rollback()
+Ensures:
+
+```text
+Concurrent transfer
+        ↓
+cannot make its balance decision
+against the same unlocked wallet state
 ```
-
-discards the uncommitted changes.
 
 Therefore:
 
-> The transfer is transactionally atomic: its financial writes are committed together or rolled back together.
+> **Atomicity protects the integrity of one transaction.**
 
-However:
+> **Pessimistic locking protects correctness when transactions compete concurrently.**
 
-> **Atomicity does not prevent two transactions from making conflicting decisions concurrently.**
+Both are required for a financially correct transfer system.
 
 ---
 
-# 8. Why `flush()` Does Not Solve Concurrency
+# 13. Why `flush()` Does Not Solve Concurrency
 
-The transfer currently uses:
+The transfer uses:
 
 ```python
 db.flush()
@@ -323,7 +478,7 @@ db.flush()
 
 after creating the transfer and ledger entries.
 
-`flush()` sends pending SQL statements to the database, but it does not commit the transaction and does not provide the required concurrency protection for the wallet balance.
+`flush()` sends pending SQL statements to the database, but it does not commit the transaction and is not a concurrency-control mechanism.
 
 Conceptually:
 
@@ -341,46 +496,114 @@ It is therefore not equivalent to:
 commit()
 ```
 
-and it is not a locking mechanism.
+and it does not replace:
+
+```text
+SELECT ... FOR UPDATE
+```
 
 ---
 
-# 9. Current Concurrency Weakness
+# 14. Deadlock Reduction Through Deterministic Ordering
 
-The current critical sequence is:
+Because a transfer locks two wallets, inconsistent lock ordering could create a deadlock.
 
-```text
-Read sender wallet
-        ↓
-Read balance
-        ↓
-Check sufficient funds
-        ↓
-Create transfer
-        ↓
-Create ledger entries
-        ↓
-Modify wallet balance
-        ↓
-Commit
-```
-
-The vulnerable gap is:
+For example:
 
 ```text
-Read balance
-     ↓
-     │  another transaction can access
-     │  the same wallet here
-     ↓
-Update balance
+Transaction A:
+LOCK Wallet 1
+    ↓
+wait for Wallet 2
+
+Transaction B:
+LOCK Wallet 2
+    ↓
+wait for Wallet 1
 ```
 
-The system currently has no explicit concurrency control protecting this decision.
+Neither transaction can continue.
+
+The implementation avoids this pattern by always acquiring wallet locks according to deterministic ID order:
+
+```text
+sort(wallet IDs)
+        ↓
+lock lowest ID first
+        ↓
+lock highest ID second
+```
+
+Therefore, two transfers involving the same pair of wallets request locks in the same order.
 
 ---
 
-# 10. Key Takeaways
+# 15. Database-Level Concurrency Test
+
+The locking behavior is verified with a concurrent integration test.
+
+Initial state:
+
+```text
+Sender = $100
+Receiver 1 = $0
+Receiver 2 = $0
+```
+
+Two concurrent requests attempt:
+
+```text
+Sender → Receiver 1 : $80
+Sender → Receiver 2 : $80
+```
+
+Expected result:
+
+```text
+Transfer 1 → SUCCESS
+Transfer 2 → INSUFFICIENT BALANCE
+```
+
+The test verifies:
+
+```text
+One request → HTTP 200
+One request → HTTP 400
+
+Sender final balance → $20
+One receiver → $80
+Other receiver → $0
+```
+
+This demonstrates that concurrent transfers cannot both successfully spend the same available balance.
+
+---
+
+# 16. Single-Server Architecture
+
+The wallet system currently uses database-backed concurrency control.
+
+The relevant mechanism is:
+
+```text
+Transfer Service
+       ↓
+Database Transaction
+       ↓
+SELECT ... FOR UPDATE
+       ↓
+PostgreSQL row locks
+       ↓
+Wallet + Ledger
+```
+
+For the current single-server architecture, this is sufficient because all transfer transactions coordinate through the same PostgreSQL database.
+
+No Redis lock, distributed lock, or external coordination mechanism is required for this design.
+
+---
+
+# 17. Key Takeaways
 
 ### Race condition
 
@@ -388,22 +611,30 @@ The system currently has no explicit concurrency control protecting this decisio
 
 ### Lost update
 
-> A concurrent modification is overwritten or fails to be reflected in the final state.
+> A concurrent modification is overwritten or fails to be reflected correctly.
 
 ### Idempotency
 
-> Prevents the same logical request from producing duplicate effects.
+> Prevents the same logical request from producing duplicate financial effects.
 
-### Concurrency control
+### Pessimistic locking
 
-> Prevents simultaneous operations from making unsafe decisions based on conflicting shared state.
+> Locks database rows before making a correctness-critical decision.
+
+### `SELECT ... FOR UPDATE`
+
+> Acquires a row-level lock that blocks competing transactions from acquiring the same lock until the current transaction completes.
 
 ### Atomicity
 
 > Ensures that the financial changes belonging to one transfer commit together or roll back together.
 
+### Deterministic lock ordering
+
+> Reduces deadlock risk when a transaction must lock multiple rows.
+
 The central lesson for the wallet system is:
 
 > **A transaction can be atomic and still be unsafe under concurrency.**
 
-The next step is to introduce database-level concurrency control so that concurrent transfers cannot make balance decisions from the same stale wallet state.
+The solution is to acquire the necessary wallet locks **inside the transaction and before the balance decision**, then perform the entire financial operation atomically.
