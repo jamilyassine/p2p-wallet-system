@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -12,8 +13,12 @@ class TransferRequest(BaseModel):
 
 
 class TransferResponse(BaseModel):
-    sender_balance: Decimal
-    receiver_balance: Decimal
+    status: str
+    transfer_id: int | None = None
+    amount: Decimal | None = None
+    sender_id: int | None = None
+    receiver_id: int | None = None
+    error_code: str | None = None
 
 
 class TransferRead(BaseModel):
@@ -29,3 +34,9 @@ class TransferRead(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+class PaginatedTransfersResponse(BaseModel):
+    current_page: int
+    page_size: int
+    total: int
+    transactions: list[TransferRead]

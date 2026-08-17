@@ -55,7 +55,7 @@ function DashboardContent() {
 
         fetch(`http://localhost:8000/transfers/user/${userId}`)
             .then((response) => response.json())
-            .then(setTransfers);
+            .then((data) => setTransfers(data.transactions));
     }, [userId]);
 
     const recentTransactions =

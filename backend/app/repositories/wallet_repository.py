@@ -31,13 +31,14 @@ class WalletRepository:
         self,
         db: Session,
         user_id: int,
-    )-> Wallet | None:
+    ) -> Wallet | None:
         return (
             db.query(Wallet)
             .filter(Wallet.user_id == user_id)
+            .populate_existing()
             .with_for_update()
             .first()
-    )
+        )
 
     def create(
         self,

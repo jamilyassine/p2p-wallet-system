@@ -1,5 +1,5 @@
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, UTC
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -18,6 +18,7 @@ from app.repositories.ledger_repository import ledger_repository
 from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
 
+
 def _validate_business_invariants(
     db: Session,
     sender_id: int,
@@ -31,7 +32,7 @@ def _validate_business_invariants(
     if sender_id == receiver_id:
         raise SelfTransferException()
 
-    # Lock both wallets in deterministic user ID order
+    # Lock both wallets in deterministic user ID order.
     wallet_ids = sorted([sender_id, receiver_id])
 
     wallets = {}
@@ -50,7 +51,7 @@ def _validate_business_invariants(
     sender_wallet = wallets[sender_id]
     receiver_wallet = wallets[receiver_id]
 
-    # Balance validation happens after both wallets are locked
+    # Balance validation happens after both wallets are locked.
     if sender_wallet.balance < amount:
         raise InsufficientBalanceException()
 
@@ -64,6 +65,7 @@ def _create_ledger_entries(
     receiver_wallet_id: int,
     amount: Decimal,
 ) -> None:
+
     debit_entry = LedgerEntry(
         wallet_id=sender_wallet_id,
         transfer_id=transfer_id,
@@ -83,14 +85,13 @@ def _create_ledger_entries(
 
 
 def _apply_transfer(
-        sender_wallet:Wallet,
-        receiver_wallet:Wallet,
-        amount:Decimal,
-    ) -> None:
+    sender_wallet: Wallet,
+    receiver_wallet: Wallet,
+    amount: Decimal,
+) -> None:
 
     sender_wallet.balance -= amount
     receiver_wallet.balance += amount
-
 
 
 def transfer_money(
@@ -99,49 +100,115 @@ def transfer_money(
     receiver_id: int,
     amount: Decimal,
     request_id: UUID,
-) -> tuple[Wallet, Wallet]:
+) -> dict:
 
     with db.begin():
 
-        # Idempotency check
-        transfer = transfer_repository.get_by_request_id(
-            db,
-            request_id,
-        )
+        # ---------------------------------------------------------
+        # 1. Resolve wallets
+        # ---------------------------------------------------------
 
-        if transfer is not None:
-            return (
-                transfer.sender_wallet,
-                transfer.receiver_wallet,
-            )
-
-        # Validate business invariants
-        # Wallets are locked inside this function
-        sender_wallet, receiver_wallet = _validate_business_invariants(
+        sender_wallet = wallet_repository.get_by_user_id(
             db,
             sender_id,
-            receiver_id,
-            amount,
         )
 
-        # Create transfer
+        receiver_wallet = wallet_repository.get_by_user_id(
+            db,
+            receiver_id,
+        )
+
+        if sender_wallet is None or receiver_wallet is None:
+            raise WalletNotFoundException()
+
+        # ---------------------------------------------------------
+        # 2. Atomically claim request_id
+        # ---------------------------------------------------------
+
         transfer = Transfer(
             request_id=request_id,
             sender_wallet_id=sender_wallet.id,
             receiver_wallet_id=receiver_wallet.id,
             amount=amount,
-            status=TransferStatus.SUCCESS,
-            completed_at=datetime.now(UTC),
+            status=TransferStatus.PENDING,
         )
 
-        transfer_repository.create(
+        created = transfer_repository.create(
             db,
             transfer,
         )
 
-        db.flush()
+        # ---------------------------------------------------------
+        # 3. Lock transfer row
+        # ---------------------------------------------------------
 
-        # Create ledger entries
+        transfer = transfer_repository.get_by_request_id_for_update(
+            db,
+            request_id,
+        )
+
+        if transfer is None:
+            raise RuntimeError("Transfer record not found.")
+
+        # ---------------------------------------------------------
+        # 4. Replay completed request
+        # ---------------------------------------------------------
+
+        if not created:
+            return transfer.response_json
+
+    
+        # ---------------------------------------------------------
+        # 5. Lock wallets + validate invariants
+        # ---------------------------------------------------------
+
+        try:
+            sender_wallet, receiver_wallet = (
+                _validate_business_invariants(
+                    db,
+                    sender_id,
+                    receiver_id,
+                    amount,
+                )
+            )
+
+        except InvalidTransferAmountException:
+            transfer.status = TransferStatus.FAILED
+            transfer.error_code = "INVALID_TRANSFER_AMOUNT"
+            transfer.response_json = {
+                "status": "FAILED",
+                "error_code": "INVALID_TRANSFER_AMOUNT",
+            }
+            transfer.completed_at = datetime.now(UTC)
+
+            return transfer.response_json
+
+        except SelfTransferException:
+            transfer.status = TransferStatus.FAILED
+            transfer.error_code = "SELF_TRANSFER"
+            transfer.response_json = {
+                "status": "FAILED",
+                "error_code": "SELF_TRANSFER",
+            }
+            transfer.completed_at = datetime.now(UTC)
+
+            return transfer.response_json
+
+        except InsufficientBalanceException:
+            transfer.status = TransferStatus.FAILED
+            transfer.error_code = "INSUFFICIENT_FUNDS"
+            transfer.response_json = {
+                "status": "FAILED",
+                "error_code": "INSUFFICIENT_FUNDS",
+            }
+            transfer.completed_at = datetime.now(UTC)
+
+            return transfer.response_json
+
+        # ---------------------------------------------------------
+        # 6. Create ledger entries
+        # ---------------------------------------------------------
+
         _create_ledger_entries(
             db,
             transfer.id,
@@ -152,28 +219,66 @@ def transfer_money(
 
         db.flush()
 
-        # Apply balance changes
+        # ---------------------------------------------------------
+        # 7. Update wallet balances
+        # ---------------------------------------------------------
+
         _apply_transfer(
             sender_wallet,
             receiver_wallet,
             amount,
         )
 
-    return sender_wallet, receiver_wallet
+        # ---------------------------------------------------------
+        # 8. Mark transfer successful + store replay response
+        # ---------------------------------------------------------
 
+        transfer.status = TransferStatus.SUCCESS
+        transfer.error_code = None
+        transfer.response_json = {
+            "status": "SUCCESS",
+            "transfer_id": transfer.id,
+            "amount": str(amount),
+            "sender_id": sender_id,
+            "receiver_id": receiver_id,
+        }
+        transfer.completed_at = datetime.now(UTC)
+
+        return transfer.response_json
 
 
 def get_transfers_by_user_id(
     db: Session,
     user_id: int,
-) -> list[Transfer]:
+    page: int,
+    limit: int,
+) -> dict:
 
-    wallet = wallet_repository.get_by_user_id(db, user_id)
+    wallet = wallet_repository.get_by_user_id(
+        db,
+        user_id,
+    )
 
     if wallet is None:
         raise WalletNotFoundException()
-
-    return transfer_repository.get_by_wallet(
+    
+    total = transfer_repository.count_by_wallet(
         db,
         wallet.id,
     )
+
+    offset = (page - 1) * limit
+
+    transactions = transfer_repository.get_by_wallet(
+        db,
+        wallet.id,
+        limit,
+        offset,
+    )
+
+    return {
+        "current_page": page,
+        "page_size": limit,
+        "total": total,
+        "transactions": transactions,
+    }

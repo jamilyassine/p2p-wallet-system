@@ -1,4 +1,5 @@
 from uuid import uuid4
+
 from app.models.transfers import Transfer, TransferStatus
 from app.models.user import User
 from app.models.wallet import Wallet
@@ -120,11 +121,12 @@ def test_insufficient_funds(client, db_session):
             "receiver_id": user2.id,
             "amount": 200,
             "request_id": str(request_id),
-            },
-        )
+        },
+    )
 
     assert response.status_code == 400
-    assert response.json()["error"] == "Insufficient balance"
+    assert response.json()["status"] == "FAILED"
+    assert response.json()["error_code"] == "INSUFFICIENT_FUNDS"
 
     db_session.refresh(sender)
     db_session.refresh(receiver)
@@ -132,15 +134,18 @@ def test_insufficient_funds(client, db_session):
     assert sender.balance == 100
     assert receiver.balance == 500
 
-    assert (
+    transfer = (
         db_session.query(Transfer)
         .filter(Transfer.request_id == request_id)
-        .count()
-        == 0
+        .one()
     )
 
+    assert transfer.status == TransferStatus.FAILED
+    assert transfer.error_code == "INSUFFICIENT_FUNDS"
+    assert transfer.response_json["status"] == "FAILED"
+
     assert (
-    db_session.query(LedgerEntry)
+        db_session.query(LedgerEntry)
         .join(Transfer)
         .filter(Transfer.request_id == request_id)
         .count()
@@ -170,13 +175,14 @@ def test_invalid_wallet(client, db_session):
 
     request_id = uuid4()
 
-    response=client.post(
-       "/transfers/",
-        json={"sender_id": user1.id,
-        "receiver_id": 999999,
-        "amount": 200,
-        "request_id": str(request_id)
-        }
+    response = client.post(
+        "/transfers/",
+        json={
+            "sender_id": user1.id,
+            "receiver_id": 999999,
+            "amount": 200,
+            "request_id": str(request_id),
+        },
     )
 
     assert response.status_code == 404
@@ -200,7 +206,6 @@ def test_invalid_wallet(client, db_session):
         .count()
         == 0
     )
-
 
 
 def test_idempotent_retry(client, db_session):
@@ -242,10 +247,10 @@ def test_idempotent_retry(client, db_session):
     response1 = client.post(
         "/transfers/",
         json={
-        "sender_id": user1.id,
-        "receiver_id": user2.id,
-        "amount": 200,
-        "request_id": str(request_id),
+            "sender_id": user1.id,
+            "receiver_id": user2.id,
+            "amount": 200,
+            "request_id": str(request_id),
         },
     )
 
@@ -296,8 +301,6 @@ def test_idempotent_retry(client, db_session):
     )
 
 
-
-
 def test_self_transfer(client, db_session):
 
     user = User(
@@ -331,18 +334,21 @@ def test_self_transfer(client, db_session):
     )
 
     assert response.status_code == 400
-    assert response.json()["error"] == "Cannot transfer to yourself"
+    assert response.json()["status"] == "FAILED"
+    assert response.json()["error_code"] == "SELF_TRANSFER"
 
     db_session.refresh(wallet)
 
     assert wallet.balance == 1000
 
-    assert (
+    transfer = (
         db_session.query(Transfer)
         .filter(Transfer.request_id == request_id)
-        .count()
-        == 0
+        .one()
     )
+
+    assert transfer.status == TransferStatus.FAILED
+    assert transfer.error_code == "SELF_TRANSFER"
 
     assert (
         db_session.query(LedgerEntry)
@@ -351,6 +357,7 @@ def test_self_transfer(client, db_session):
         .count()
         == 0
     )
+
 
 def test_invalid_amount(client, db_session):
 
@@ -399,7 +406,8 @@ def test_invalid_amount(client, db_session):
     )
 
     assert response.status_code == 400
-    assert response.json()["error"] == "Transfer amount must be positive"
+    assert response.json()["status"] == "FAILED"
+    assert response.json()["error_code"] == "INVALID_TRANSFER_AMOUNT"
 
     db_session.refresh(sender)
     db_session.refresh(receiver)
@@ -407,12 +415,14 @@ def test_invalid_amount(client, db_session):
     assert sender.balance == 1000
     assert receiver.balance == 500
 
-    assert (
+    transfer = (
         db_session.query(Transfer)
         .filter(Transfer.request_id == request_id)
-        .count()
-        == 0
+        .one()
     )
+
+    assert transfer.status == TransferStatus.FAILED
+    assert transfer.error_code == "INVALID_TRANSFER_AMOUNT"
 
     assert (
         db_session.query(LedgerEntry)
@@ -421,5 +431,4 @@ def test_invalid_amount(client, db_session):
         .count()
         == 0
     )
-
 
