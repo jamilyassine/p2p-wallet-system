@@ -4,6 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from enum import Enum
+
+class TransferSort(str, Enum):
+    date = "date"
+    amount = "amount"
+
 
 class TransferRequest(BaseModel):
     request_id: UUID

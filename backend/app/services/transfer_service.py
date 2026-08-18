@@ -17,6 +17,7 @@ from app.models.wallet import Wallet
 from app.repositories.ledger_repository import ledger_repository
 from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
+from app.schemas.transfer import TransferSort
 
 
 def _validate_business_invariants(
@@ -252,6 +253,8 @@ def get_transfers_by_user_id(
     user_id: int,
     page: int,
     limit: int,
+    status: TransferStatus | None,
+    sort: TransferSort | None,
 ) -> dict:
 
     wallet = wallet_repository.get_by_user_id(
@@ -265,6 +268,7 @@ def get_transfers_by_user_id(
     total = transfer_repository.count_by_wallet(
         db,
         wallet.id,
+        status,
     )
 
     offset = (page - 1) * limit
@@ -274,6 +278,8 @@ def get_transfers_by_user_id(
         wallet.id,
         limit,
         offset,
+        status,
+        sort,  
     )
 
     return {

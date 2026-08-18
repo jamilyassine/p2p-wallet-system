@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from app.models.transfers import TransferStatus
 
 from app.db.session import get_db
 from app.schemas.transfer import (
+    TransferSort,
     TransferRequest,
     TransferResponse,
     PaginatedTransfersResponse,
@@ -42,6 +44,8 @@ def create_transfer_endpoint(
     return response
 
 
+
+
 @router.get(
     "/user/{user_id}",
     response_model=PaginatedTransfersResponse,
@@ -51,11 +55,15 @@ def get_transfers_by_user_id_endpoint(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
+    status: TransferStatus | None = Query(None),
+    sort: TransferSort | None = Query(None)
 ):
     return transfer_service.get_transfers_by_user_id(
         db,
         user_id,
         page,
         limit,
+        status,
+        sort,  
     )
 

@@ -4,7 +4,7 @@ from sqlalchemy import or_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.transfers import Transfer
+from app.models.transfers import Transfer, TransferStatus
 from app.models.wallet import Wallet
 
 
@@ -40,9 +40,11 @@ class TransferRepository:
         wallet_id: int,
         limit: int,
         offset: int,
+        status: TransferStatus | None,
+        sort: str | None,  # ← ADDED
     ) -> list[Transfer]:
 
-        return (
+        query = (
             db.query(Transfer)
             .options(
                 joinedload(Transfer.sender_wallet).joinedload(Wallet.user),
@@ -54,11 +56,32 @@ class TransferRepository:
                     Transfer.receiver_wallet_id == wallet_id,
                 )
             )
-            .order_by(Transfer.created_at.desc())
+        )
+
+        # Filtering
+        if status is not None:
+            query = query.filter(Transfer.status == status)
+
+        # Sorting
+        allowed_sorts = {
+            "date": Transfer.created_at.desc(),
+            "amount": Transfer.amount.desc(),
+        }
+
+        if sort is not None:
+            query = query.order_by(allowed_sorts[sort])
+        else:
+            query = query.order_by(Transfer.created_at.desc())
+
+        return (
+            query
             .offset(offset)
             .limit(limit)
             .all()
         )
+
+        
+
 
     def get_by_request_id(
         self,
@@ -89,8 +112,10 @@ class TransferRepository:
         self,
         db: Session,
         wallet_id: int,
+        status: TransferStatus | None,  # ← ADDED
     ) -> int:
-        return (
+
+        query = (
             db.query(Transfer)
             .filter(
                 or_(
@@ -98,8 +123,13 @@ class TransferRepository:
                     Transfer.receiver_wallet_id == wallet_id,
                 )
             )
-            .count()
         )
+
+        # ← ADDED: filtering happens in the DB
+        if status is not None:
+            query = query.filter(Transfer.status == status)
+
+        return query.count()
 
 
 transfer_repository = TransferRepository()
