@@ -1,12 +1,12 @@
 from uuid import UUID
 
-from sqlalchemy import or_
+from sqlalchemy import String, and_, or_
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, aliased
 
 from app.models.transfers import Transfer, TransferStatus
 from app.models.wallet import Wallet
-
+from app.models.user import User
 
 class TransferRepository:
 
@@ -41,11 +41,33 @@ class TransferRepository:
         limit: int,
         offset: int,
         status: TransferStatus | None,
-        sort: str | None,  # ← ADDED
+        sort: str | None,
+        search: str | None,
     ) -> list[Transfer]:
+
+        sender_wallet = aliased(Wallet)
+        receiver_wallet = aliased(Wallet)
+        sender_user = aliased(User)
+        receiver_user = aliased(User)
 
         query = (
             db.query(Transfer)
+            .join(
+                sender_wallet,
+                Transfer.sender_wallet_id == sender_wallet.id,
+            )
+            .join(
+                receiver_wallet,
+                Transfer.receiver_wallet_id == receiver_wallet.id,
+            )
+            .join(
+                sender_user,
+                sender_wallet.user_id == sender_user.id,
+            )
+            .join(
+                receiver_user,
+                receiver_wallet.user_id == receiver_user.id,
+            )
             .options(
                 joinedload(Transfer.sender_wallet).joinedload(Wallet.user),
                 joinedload(Transfer.receiver_wallet).joinedload(Wallet.user),
@@ -61,6 +83,34 @@ class TransferRepository:
         # Filtering
         if status is not None:
             query = query.filter(Transfer.status == status)
+
+        if search is not None:
+            search_pattern = f"%{search}%"
+
+            query = query.filter(
+                or_(
+                    # Current user is sender → search receiver
+                    and_(
+                        Transfer.sender_wallet_id == wallet_id,
+                        or_(
+                            receiver_user.name.ilike(search_pattern),
+                            receiver_user.email.ilike(search_pattern),
+                        ),
+                    ),
+
+                    # Current user is receiver → search sender
+                    and_(
+                        Transfer.receiver_wallet_id == wallet_id,
+                        or_(
+                            sender_user.name.ilike(search_pattern),
+                            sender_user.email.ilike(search_pattern),
+                        ),
+                    ),
+
+                    # Transaction ID
+                    Transfer.id.cast(String).ilike(search_pattern),
+                )
+            )
 
         # Sorting
         allowed_sorts = {
@@ -79,8 +129,6 @@ class TransferRepository:
             .limit(limit)
             .all()
         )
-
-        
 
 
     def get_by_request_id(
@@ -108,15 +156,39 @@ class TransferRepository:
             .first()
         )
 
+
+
     def count_by_wallet(
         self,
         db: Session,
         wallet_id: int,
-        status: TransferStatus | None,  # ← ADDED
+        status: TransferStatus | None,
+        search: str | None,
     ) -> int:
+
+        sender_wallet = aliased(Wallet)
+        receiver_wallet = aliased(Wallet)
+        sender_user = aliased(User)
+        receiver_user = aliased(User)
 
         query = (
             db.query(Transfer)
+            .join(
+                sender_wallet,
+                Transfer.sender_wallet_id == sender_wallet.id,
+            )
+            .join(
+                receiver_wallet,
+                Transfer.receiver_wallet_id == receiver_wallet.id,
+            )
+            .join(
+                sender_user,
+                sender_wallet.user_id == sender_user.id,
+            )
+            .join(
+                receiver_user,
+                receiver_wallet.user_id == receiver_user.id,
+            )
             .filter(
                 or_(
                     Transfer.sender_wallet_id == wallet_id,
@@ -125,9 +197,36 @@ class TransferRepository:
             )
         )
 
-        # ← ADDED: filtering happens in the DB
         if status is not None:
             query = query.filter(Transfer.status == status)
+
+        if search is not None:
+            search_pattern = f"%{search}%"
+
+            query = query.filter(
+                or_(
+                    # Current user is sender → search receiver
+                    and_(
+                        Transfer.sender_wallet_id == wallet_id,
+                        or_(
+                            receiver_user.name.ilike(search_pattern),
+                            receiver_user.email.ilike(search_pattern),
+                        ),
+                    ),
+
+                    # Current user is receiver → search sender
+                    and_(
+                        Transfer.receiver_wallet_id == wallet_id,
+                        or_(
+                            sender_user.name.ilike(search_pattern),
+                            sender_user.email.ilike(search_pattern),
+                        ),
+                    ),
+
+                    # Transaction ID
+                    Transfer.id.cast(String).ilike(search_pattern),
+                )
+            )
 
         return query.count()
 

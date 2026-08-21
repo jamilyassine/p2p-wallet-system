@@ -255,6 +255,7 @@ def get_transfers_by_user_id(
     limit: int,
     status: TransferStatus | None,
     sort: TransferSort | None,
+    search: str | None,
 ) -> dict:
 
     wallet = wallet_repository.get_by_user_id(
@@ -264,11 +265,12 @@ def get_transfers_by_user_id(
 
     if wallet is None:
         raise WalletNotFoundException()
-    
+
     total = transfer_repository.count_by_wallet(
         db,
         wallet.id,
         status,
+        search,
     )
 
     offset = (page - 1) * limit
@@ -279,7 +281,8 @@ def get_transfers_by_user_id(
         limit,
         offset,
         status,
-        sort,  
+        sort,
+        search,
     )
 
     return {

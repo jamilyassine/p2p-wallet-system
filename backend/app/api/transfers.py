@@ -56,7 +56,8 @@ def get_transfers_by_user_id_endpoint(
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     status: TransferStatus | None = Query(None),
-    sort: TransferSort | None = Query(None)
+    sort: TransferSort | None = Query(None),
+    search: str | None = Query(None),
 ):
     return transfer_service.get_transfers_by_user_id(
         db,
@@ -64,6 +65,7 @@ def get_transfers_by_user_id_endpoint(
         page,
         limit,
         status,
-        sort,  
+        sort,
+        search,
     )
 
