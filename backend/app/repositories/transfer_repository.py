@@ -34,17 +34,13 @@ class TransferRepository:
 
         return result.rowcount == 1
 
-    def get_by_wallet(
+    def _build_wallet_query(
         self,
         db: Session,
         wallet_id: int,
-        limit: int,
-        offset: int,
         status: TransferStatus | None,
-        sort: str | None,
         search: str | None,
-    ) -> list[Transfer]:
-
+    ):
         sender_wallet = aliased(Wallet)
         receiver_wallet = aliased(Wallet)
         sender_user = aliased(User)
@@ -68,10 +64,6 @@ class TransferRepository:
                 receiver_user,
                 receiver_wallet.user_id == receiver_user.id,
             )
-            .options(
-                joinedload(Transfer.sender_wallet).joinedload(Wallet.user),
-                joinedload(Transfer.receiver_wallet).joinedload(Wallet.user),
-            )
             .filter(
                 or_(
                     Transfer.sender_wallet_id == wallet_id,
@@ -80,7 +72,6 @@ class TransferRepository:
             )
         )
 
-        # Filtering
         if status is not None:
             query = query.filter(Transfer.status == status)
 
@@ -89,7 +80,6 @@ class TransferRepository:
 
             query = query.filter(
                 or_(
-                    # Current user is sender → search receiver
                     and_(
                         Transfer.sender_wallet_id == wallet_id,
                         or_(
@@ -97,8 +87,6 @@ class TransferRepository:
                             receiver_user.email.ilike(search_pattern),
                         ),
                     ),
-
-                    # Current user is receiver → search sender
                     and_(
                         Transfer.receiver_wallet_id == wallet_id,
                         or_(
@@ -106,13 +94,33 @@ class TransferRepository:
                             sender_user.email.ilike(search_pattern),
                         ),
                     ),
-
-                    # Transaction ID
                     Transfer.id.cast(String).ilike(search_pattern),
                 )
             )
 
-        # Sorting
+        return query
+
+    def get_by_wallet(
+        self,
+        db: Session,
+        wallet_id: int,
+        limit: int,
+        offset: int,
+        status: TransferStatus | None,
+        sort: str | None,
+        search: str | None,
+    ) -> list[Transfer]:
+
+        query = self._build_wallet_query(
+            db,
+            wallet_id,
+            status,
+            search,
+        ).options(
+            joinedload(Transfer.sender_wallet).joinedload(Wallet.user),
+            joinedload(Transfer.receiver_wallet).joinedload(Wallet.user),
+        )
+
         allowed_sorts = {
             "date": Transfer.created_at.desc(),
             "amount": Transfer.amount.desc(),
@@ -149,6 +157,7 @@ class TransferRepository:
         db: Session,
         request_id: UUID,
     ) -> Transfer | None:
+        
         return (
             db.query(Transfer)
             .filter(Transfer.request_id == request_id)
@@ -166,67 +175,12 @@ class TransferRepository:
         search: str | None,
     ) -> int:
 
-        sender_wallet = aliased(Wallet)
-        receiver_wallet = aliased(Wallet)
-        sender_user = aliased(User)
-        receiver_user = aliased(User)
-
-        query = (
-            db.query(Transfer)
-            .join(
-                sender_wallet,
-                Transfer.sender_wallet_id == sender_wallet.id,
-            )
-            .join(
-                receiver_wallet,
-                Transfer.receiver_wallet_id == receiver_wallet.id,
-            )
-            .join(
-                sender_user,
-                sender_wallet.user_id == sender_user.id,
-            )
-            .join(
-                receiver_user,
-                receiver_wallet.user_id == receiver_user.id,
-            )
-            .filter(
-                or_(
-                    Transfer.sender_wallet_id == wallet_id,
-                    Transfer.receiver_wallet_id == wallet_id,
-                )
-            )
+        query = self._build_wallet_query(
+            db,
+            wallet_id,
+            status,
+            search,
         )
-
-        if status is not None:
-            query = query.filter(Transfer.status == status)
-
-        if search is not None:
-            search_pattern = f"%{search}%"
-
-            query = query.filter(
-                or_(
-                    # Current user is sender → search receiver
-                    and_(
-                        Transfer.sender_wallet_id == wallet_id,
-                        or_(
-                            receiver_user.name.ilike(search_pattern),
-                            receiver_user.email.ilike(search_pattern),
-                        ),
-                    ),
-
-                    # Current user is receiver → search sender
-                    and_(
-                        Transfer.receiver_wallet_id == wallet_id,
-                        or_(
-                            sender_user.name.ilike(search_pattern),
-                            sender_user.email.ilike(search_pattern),
-                        ),
-                    ),
-
-                    # Transaction ID
-                    Transfer.id.cast(String).ilike(search_pattern),
-                )
-            )
 
         return query.count()
 

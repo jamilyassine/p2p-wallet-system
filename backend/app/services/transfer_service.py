@@ -95,6 +95,23 @@ def _apply_transfer(
     receiver_wallet.balance += amount
 
 
+def _fail_transfer(
+    transfer: Transfer,
+    status: str,
+    error_code: str,
+) -> dict:
+
+    transfer.status = TransferStatus.FAILED
+    transfer.error_code = error_code
+    transfer.response_json = {
+        "status": status,
+        "error_code": error_code,
+    }
+    transfer.completed_at = datetime.now(UTC)
+
+    return transfer.response_json
+
+
 def transfer_money(
     db: Session,
     sender_id: int,
@@ -164,47 +181,33 @@ def transfer_money(
         # ---------------------------------------------------------
 
         try:
-            sender_wallet, receiver_wallet = (
-                _validate_business_invariants(
-                    db,
-                    sender_id,
-                    receiver_id,
-                    amount,
-                )
+            sender_wallet, receiver_wallet = _validate_business_invariants(
+                db,
+                sender_id,
+                receiver_id,
+                amount,
             )
 
         except InvalidTransferAmountException:
-            transfer.status = TransferStatus.FAILED
-            transfer.error_code = "INVALID_TRANSFER_AMOUNT"
-            transfer.response_json = {
-                "status": "FAILED",
-                "error_code": "INVALID_TRANSFER_AMOUNT",
-            }
-            transfer.completed_at = datetime.now(UTC)
-
-            return transfer.response_json
+            return _fail_transfer(
+                transfer,
+                "FAILED",
+                "INVALID_TRANSFER_AMOUNT",
+            )
 
         except SelfTransferException:
-            transfer.status = TransferStatus.FAILED
-            transfer.error_code = "SELF_TRANSFER"
-            transfer.response_json = {
-                "status": "FAILED",
-                "error_code": "SELF_TRANSFER",
-            }
-            transfer.completed_at = datetime.now(UTC)
-
-            return transfer.response_json
+            return _fail_transfer(
+                transfer,
+                "FAILED",
+                "SELF_TRANSFER",
+            )
 
         except InsufficientBalanceException:
-            transfer.status = TransferStatus.FAILED
-            transfer.error_code = "INSUFFICIENT_FUNDS"
-            transfer.response_json = {
-                "status": "FAILED",
-                "error_code": "INSUFFICIENT_FUNDS",
-            }
-            transfer.completed_at = datetime.now(UTC)
-
-            return transfer.response_json
+            return _fail_transfer(
+                transfer,
+                "FAILED",
+                "INSUFFICIENT_FUNDS",
+            )
 
         # ---------------------------------------------------------
         # 6. Create ledger entries
