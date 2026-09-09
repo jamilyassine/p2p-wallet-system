@@ -2,7 +2,7 @@
 
 A production-oriented **Peer-to-Peer Digital Wallet** built with **FastAPI**, **PostgreSQL**, **SQLAlchemy**, **Alembic**, and **Next.js**.
 
-This project is part of my software engineering portfolio and demonstrates modern backend engineering practices including layered architecture, repository and service patterns, database transactions, immutable financial ledgers, retry-safe API design through idempotency, and production-oriented application design.
+This project is part of my software engineering portfolio and demonstrates modern backend engineering practices including layered architecture, repository and service patterns, database transactions, immutable financial ledgers, transaction querying, database-level filtering, indexed queries, and production-oriented application design.
 
 ---
 
@@ -25,6 +25,10 @@ This project is part of my software engineering portfolio and demonstrates moder
 * Double-entry ledger
 * Immutable financial history
 * Ledger browsing
+* Transaction pagination
+* Transaction filtering
+* Transaction sorting
+* Transaction search
 * Business rule validation
 * Input validation
 
@@ -34,6 +38,9 @@ This project is part of my software engineering portfolio and demonstrates moder
 * Repository Pattern
 * Service Layer
 * Database Transactions
+* Database-level filtering
+* Indexed database queries
+* Integration Testing
 * Alembic Migrations
 * Centralized Exception Handling
 * Dockerized Development Environment
@@ -79,9 +86,9 @@ p2p-wallet-system/
 │   ├── Architecture.md
 │   ├── Ledger Design.md
 │   ├── Testing.md
+│   ├── Performance.md
 │   └── Deployment.md
 └── README.md
-```
 
 ---
 
@@ -89,14 +96,13 @@ p2p-wallet-system/
 
 ## Clone the repository
 
-```bash
+
 git clone https://github.com/jamilyassine/p2p-wallet-system.git
 cd p2p-wallet-system
-```
+
 
 ## Backend
 
-```bash
 cd backend
 
 python -m venv venv
@@ -107,61 +113,67 @@ venv\Scripts\activate
 pip install -r requirements.txt
 
 docker compose up
-```
 
 Backend:
 
-* API: http://localhost:8000
-* Swagger: http://localhost:8000/docs
-* ReDoc: http://localhost:8000/redoc
+  API: http://localhost:8000
+  Swagger: http://localhost:8000/docs
+  ReDoc: http://localhost:8000/redoc
 
 ## Frontend
 
-```bash
 cd frontend
 
 npm install
-
 npm run dev
-```
 
 Frontend:
 
-* http://localhost:3000
+  http://localhost:3000
 
 ---
 
 # 📚 Documentation
 
-Detailed documentation is available inside the **docs/** directory.
+Detailed documentation is available inside the docs/ directory.
 
-* **API Documentation**
+  API Documentation
+    docs/API.md
 
-  * `docs/API.md`
+  Architecture
+    docs/Architecture.md
 
-* **Architecture**
+  Ledger Design
+    docs/Ledger Design.md
 
-  * `docs/Architecture.md`
+  Testing
+    docs/Testing.md
 
-* **Ledger Design**
+  Performance
+    docs/Performance.md
 
-  * `docs/Ledger Design.md`
+  Deployment
+    docs/Deployment.md
 
 ---
 
 # ⭐ Engineering Highlights
 
+
 This project emphasizes:
 
-* Clean Architecture
-* Separation of Concerns
-* Transactional Integrity
-* Immutable Financial Ledgers
-* Double-entry Accounting
-* Maintainability
-* Database Versioning
-* Type Safety
-* Professional Backend Engineering Practices
+  * Clean Architecture
+  * Separation of Concerns
+  * Transactional Integrity
+  * Immutable Financial Ledgers
+  * Double-entry Accounting
+  * Database-level Querying
+  * Query Performance & Indexing
+  * Integration Testing
+  * Maintainability
+  * Database Versioning
+  * Type Safety
+  * Professional Backend Engineering Practices
 
 ---
 
@@ -169,18 +181,25 @@ This project emphasizes:
 
 Current implementation includes:
 
-* ✅ User Management
-* ✅ Wallet Management
-* ✅ Money Transfers
-* ✅ Immutable Ledger
-* ✅ Double-entry Accounting
-* ✅ Layered Architecture
-* ✅ Repository Pattern
-* ✅ Service Layer
-* ✅ Alembic Migrations
-* ✅ Centralized Exception Handling
-* ✅ Dockerized Backend
-* ✅ Next.js Frontend
+✅ User Management
+✅ Wallet Management
+✅ Money Transfers
+✅ Immutable Ledger
+✅ Double-entry Accounting
+✅ Transaction Pagination
+✅ Transaction Filtering
+✅ Transaction Sorting
+✅ Transaction Search
+✅ Layered Architecture
+✅ Repository Pattern
+✅ Service Layer
+✅ Database-level Filtering
+✅ Indexed Queries
+✅ Integration Tests
+✅ Alembic Migrations
+✅ Centralized Exception Handling
+✅ Dockerized Backend
+✅ Next.js Frontend
 
 ---
 
@@ -192,7 +211,6 @@ Current implementation includes:
 * Row-Level Locking
 * Redis Caching
 * Background Jobs
-* Automated Testing
 * CI/CD Pipeline
 * Monitoring & Observability
 * Cloud Deployment

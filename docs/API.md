@@ -127,23 +127,32 @@ To perform a new transfer, the client must generate a new `request_id`.
 
 ---
 
-## Get User Transfer History
+## Query Transactions
 
-**GET**
+GET
 
-```text
-/transfers/user/{user_id}
-```
+/transactions
 
-### Path Parameters
+### Query Parameters
 
-| Name    | Type    | Description     |
-| ------- | ------- | --------------- |
-| user_id | integer | User identifier |
+Parameter	Type	    Default	    Description
+
+page	    integer	    1	        Page number
+limit	    integer	    20	        Maximum number of transactions returned
+status	    string	    —	        Filter transactions by status
+sort	    string	    —	        Sort transactions by date
+search	    string	    —	        Search transactions
 
 ### Description
 
-Returns the transfer history for the specified user.
+Returns transactions with support for pagination, filtering, sorting, and search.
+
+### Examples
+
+/transactions?page=2&limit=20
+/transactions?status=SUCCESS
+/transactions?sort=date
+/transactions?search=...
 
 ---
 
