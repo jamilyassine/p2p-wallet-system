@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
     LayoutDashboard,
     Send,
@@ -10,51 +11,51 @@ import {
     User,
     Settings,
     LogOut,
-    WalletCards,
 } from "lucide-react";
 
 export default function Sidebar() {
     const pathname = usePathname();
-    const searchParams = useSearchParams();
-    const userId = searchParams.get("userId");
+    const router = useRouter();
 
-    const withUserId = (path: string) =>
-        userId ? `${path}?userId=${userId}` : path;
+    function handleLogout() {
+        localStorage.removeItem("access_token");
+        router.replace("/login");
+    }
 
     const navItems = [
         {
             label: "Dashboard",
-            href: withUserId("/dashboard"),
+            href: "/dashboard",
             path: "/dashboard",
             icon: LayoutDashboard,
         },
         {
             label: "Send Money",
-            href: withUserId("/send-money"),
+            href: "/send-money",
             path: "/send-money",
             icon: Send,
         },
         {
             label: "History",
-            href: withUserId("/history"),
+            href: "/history",
             path: "/history",
             icon: History,
         },
         {
             label: "Ledger",
-            href: withUserId("/ledger"),
+            href: "/ledger",
             path: "/ledger",
             icon: BookOpen,
         },
         {
             label: "Profile",
-            href: withUserId("/profile"),
+            href: "/profile",
             path: "/profile",
             icon: User,
         },
         {
             label: "Settings",
-            href: withUserId("/settings"),
+            href: "/settings",
             path: "/settings",
             icon: Settings,
         },
@@ -62,12 +63,16 @@ export default function Sidebar() {
 
     return (
         <aside className="fixed left-0 top-0 flex h-screen w-[220px] flex-col bg-[#0B1633] px-5 py-5 text-white">
-
             {/* Logo */}
             <div className="mb-12 flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#4C3BDB]">
-                    <WalletCards size={20} />
-                </div>
+                <Image
+                    src="/images/p2p-wallet-logo.png"
+                    alt="P2P Wallet"
+                    width={36}
+                    height={36}
+                    className="shrink-0 rounded-xl"
+                    priority
+                />
 
                 <span className="text-base font-semibold">
                     P2P Wallet
@@ -76,7 +81,7 @@ export default function Sidebar() {
 
             {/* Navigation */}
             <nav className="flex-1">
-                <ul className="flex flex-col justify-between h-[420px]">
+                <ul className="flex h-[420px] flex-col justify-between">
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const active = pathname === item.path;
@@ -106,6 +111,7 @@ export default function Sidebar() {
 
             {/* Logout */}
             <button
+                onClick={handleLogout}
                 className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-[#17244A] hover:text-white"
             >
                 <LogOut size={19} />

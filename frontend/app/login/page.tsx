@@ -1,111 +1,177 @@
 "use client";
-import type { UserResponse } from "../../types/user";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
     const router = useRouter();
 
-    const [users, setUsers] = useState<UserResponse[]>([]);
-    const [selectedUser, setSelectedUser] = useState<UserResponse | null>(null);
-
-    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [error, setError] = useState("");
 
-    useEffect(() => {
-        fetch("http://localhost:8000/users")
-            .then((response) => response.json())
-            .then(setUsers);
-    }, []);
+    const handleLogin = async () => {
+        setError("");
 
-    const handleCreateUser = () => {
-        fetch("http://localhost:8000/users", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                name,
-                email,
-            }),
-        })
-            .then((response) => response.json())
-            .then((data) => {
-                setUsers((previousUsers) => [...previousUsers, data]);
-                setSelectedUser(data);
-                setName("");
-                setEmail("");
-            });
+        try {
+            const response = await fetch(
+                "http://localhost:8000/users/login",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        email,
+                        password,
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                setError("Invalid email or password");
+                return;
+            }
+
+            const data = await response.json();
+
+            localStorage.setItem("access_token", data.access_token);
+
+            router.push("/dashboard");
+        } catch (error) {
+            console.error(error);
+            setError("Unable to connect to the server");
+        }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center">
-            <div className="flex flex-col gap-4 w-full max-w-sm bg-white rounded-xl shadow-lg p-10">
-                <h1 className="text-3xl font-bold">
-                    Mock Login
-                </h1>
+        <div className="min-h-screen bg-slate-50 p-5">
+            <div className="mx-auto flex min-h-[calc(100vh-40px)] w-full max-w-7xl overflow-hidden rounded-2xl bg-white shadow-xl">
+                {/* Left branding panel */}
+                <div className="relative hidden w-1/2 overflow-hidden bg-[#07133f] px-10 py-10 text-white lg:flex lg:flex-col">
+                    <div className="flex items-center gap-3">
+                        <Image
+                            src="/images/p2p-wallet-logo.png"
+                            alt="P2P Wallet"
+                            width={40}
+                            height={40}
+                            className="rounded-xl"
+                            priority
+                        />
 
-                <p className="text-gray-500 mb-4">
-                    Select an existing user or create a new one
-                </p>
+                        <span className="text-xl font-semibold">
+                            P2P Wallet
+                        </span>
+                    </div>
 
-                <h2 className="font-semibold">
-                    Existing Users
-                </h2>
+                    <div className="mt-8 max-w-sm">
+                        <h2 className="text-lg font-semibold">
+                            Secure. Fast. Reliable.
+                        </h2>
 
-                {users.map((user) => (
-                    <button
-                        key={user.id}
-                        onClick={() => {
-                            setSelectedUser(user);
-                            router.push(`/dashboard?userId=${user.id}`);
-                        }}
-                        className="w-full text-left px-3 py-2 border rounded hover:bg-gray-100"
-                    >
-                        {user.name}
-                    </button>
-                ))}
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                            Peer-to-peer money transfers you can trust.
+                        </p>
+                    </div>
 
-                {selectedUser && (
-                    <p className="text-green-600">
-                        Selected: {selectedUser.name}
-                    </p>
-                )}
+                    <div className="flex flex-1 items-center justify-center py-8">
+                        <Image
+                            src="/images/login-illustration.png"
+                            alt="P2P money transfer"
+                            width={520}
+                            height={520}
+                            className="max-h-[420px] w-auto object-contain"
+                            priority
+                        />
+                    </div>
+                </div>
 
-                <hr className="my-4" />
+                {/* Login panel */}
+                <div className="flex w-full items-center justify-center px-6 py-10 lg:w-1/2 lg:px-12">
+                    <div className="w-full max-w-md">
+                        <h1 className="text-3xl font-bold text-slate-900">
+                            Welcome back
+                        </h1>
 
-                <h2 className="font-semibold">
-                    Create New User
-                </h2>
+                        <p className="mt-2 text-sm text-slate-500">
+                            Login to your account
+                        </p>
 
-                <label>Name</label>
+                        <div className="mt-8 space-y-5">
+                            <div>
+                                <label
+                                    htmlFor="email"
+                                    className="mb-2 block text-sm font-medium text-slate-800"
+                                >
+                                    Email
+                                </label>
 
-                <input
-                    type="text"
-                    placeholder="John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
+                                <input
+                                    id="email"
+                                    type="email"
+                                    placeholder="you@example.com"
+                                    value={email}
+                                    onChange={(e) =>
+                                        setEmail(e.target.value)
+                                    }
+                                    className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                                />
+                            </div>
 
-                <label>Email</label>
+                            <div>
+                                <label
+                                    htmlFor="password"
+                                    className="mb-2 block text-sm font-medium text-slate-800"
+                                >
+                                    Password
+                                </label>
 
-                <input
-                    type="email"
-                    placeholder="john@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                />
+                                <input
+                                    id="password"
+                                    type="password"
+                                    placeholder="Password"
+                                    value={password}
+                                    onChange={(e) =>
+                                        setPassword(e.target.value)
+                                    }
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            handleLogin();
+                                        }
+                                    }}
+                                    className="h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                                />
+                            </div>
 
-                <button
-                    onClick={handleCreateUser}
-                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 transition-colors text-white rounded-lg"
-                >
-                    Create User
-                </button>
+                            {error && (
+                                <p className="text-sm text-red-600">
+                                    {error}
+                                </p>
+                            )}
+
+                            <button
+                                onClick={handleLogin}
+                                className="h-11 w-full rounded-lg bg-purple-600 font-medium text-white transition hover:bg-purple-700"
+                            >
+                                Log in
+                            </button>
+
+                            <p className="text-center text-sm text-slate-500">
+                                Don't have an account?{" "}
+                                <button
+                                    onClick={() => router.push("/register")}
+                                    className="font-medium text-purple-600 hover:text-purple-700"
+                                >
+                                    Sign up
+                                </button>
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );
 }
+
+

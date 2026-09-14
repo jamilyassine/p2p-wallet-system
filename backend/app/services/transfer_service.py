@@ -175,7 +175,6 @@ def transfer_money(
         if not created:
             return transfer.response_json
 
-    
         # ---------------------------------------------------------
         # 5. Lock wallets + validate invariants
         # ---------------------------------------------------------
@@ -234,19 +233,26 @@ def transfer_money(
         )
 
         # ---------------------------------------------------------
-        # 8. Mark transfer successful + store replay response
+        # 8. Build successful response
         # ---------------------------------------------------------
 
         transfer.status = TransferStatus.SUCCESS
         transfer.error_code = None
+        transfer.completed_at = datetime.now(UTC)
+
+        sender_user = sender_wallet.user
+        receiver_user = receiver_wallet.user
+
         transfer.response_json = {
             "status": "SUCCESS",
             "transfer_id": transfer.id,
             "amount": str(amount),
             "sender_id": sender_id,
+            "sender_name": sender_user.name,
             "receiver_id": receiver_id,
+            "receiver_name": receiver_user.name,
+            "created_at": transfer.completed_at.isoformat(),
         }
-        transfer.completed_at = datetime.now(UTC)
 
         return transfer.response_json
 

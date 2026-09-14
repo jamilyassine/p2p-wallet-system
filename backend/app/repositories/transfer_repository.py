@@ -139,6 +139,18 @@ class TransferRepository:
         )
 
 
+    def get_by_id(
+        self,
+        db: Session,
+        transfer_id: int,
+    ) -> Transfer | None:
+        return (
+            db.query(Transfer)
+            .filter(Transfer.id == transfer_id)
+            .first()
+        )
+
+
     def get_by_request_id(
         self,
         db: Session,

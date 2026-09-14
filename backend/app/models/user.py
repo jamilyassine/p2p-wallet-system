@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from app.models.wallet import Wallet
+
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +25,11 @@ class User(Base):
     email: Mapped[str] = mapped_column(
         String,
         unique=True,
+        nullable=False,
+    )
+
+    password_hash: Mapped[str] = mapped_column(
+        String,
         nullable=False,
     )
 

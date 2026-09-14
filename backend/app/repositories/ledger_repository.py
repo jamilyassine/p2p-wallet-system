@@ -1,7 +1,8 @@
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, joinedload
 
-from app.models.ledger_entry import LedgerEntry
+from app.models.ledger_entry import LedgerEntry, LedgerEntryType
+from app.models.wallet import Wallet
 
 
 class LedgerRepository:
@@ -29,14 +30,44 @@ class LedgerRepository:
     def get_recent(
         self,
         db: Session,
+        user_id: int,
+        offset: int = 0,
         limit: int = 20,
-    ) -> list[LedgerEntry]:
-        stmt = (
+        entry_type: LedgerEntryType | None = None,
+    ) -> tuple[list[LedgerEntry], int]:
+
+        entries_stmt = (
             select(LedgerEntry)
+            .join(Wallet, LedgerEntry.wallet_id == Wallet.id)
+            .options(
+                joinedload(LedgerEntry.wallet)
+                .joinedload(Wallet.user)
+            )
+            .where(Wallet.user_id == user_id)
             .order_by(LedgerEntry.created_at.desc())
+            .offset(offset)
             .limit(limit)
         )
-        return db.scalars(stmt).all()
+
+        count_stmt = (
+            select(func.count())
+            .select_from(LedgerEntry)
+            .join(Wallet, LedgerEntry.wallet_id == Wallet.id)
+            .where(Wallet.user_id == user_id)
+        )
+
+        if entry_type:
+            entries_stmt = entries_stmt.where(
+                LedgerEntry.entry_type == entry_type
+            )
+            count_stmt = count_stmt.where(
+                LedgerEntry.entry_type == entry_type
+            )
+
+        entries = db.scalars(entries_stmt).all()
+        total = db.scalar(count_stmt) or 0
+
+        return entries, total
 
     def get_by_transfer(
         self,
@@ -52,4 +83,3 @@ class LedgerRepository:
 
 
 ledger_repository = LedgerRepository()
- 

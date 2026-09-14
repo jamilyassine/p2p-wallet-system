@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+from app.core.security import hash_password
 from app.models.transfers import Transfer, TransferStatus
 from app.models.user import User
 from app.models.wallet import Wallet
@@ -33,16 +34,19 @@ def setup_users_and_wallets(db_session):
     user1 = User(
         name="Alice",
         email=f"alice-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     user2 = User(
         name="Bob",
         email=f"bob-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     user3 = User(
         name="Charlie",
         email=f"charlie-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     db_session.add_all([user1, user2, user3])
@@ -60,15 +64,35 @@ def setup_users_and_wallets(db_session):
     return user1, user2, user3
 
 
+def login_and_get_headers(client, user):
+    response = client.post(
+        "/users/login",
+        json={
+            "email": user.email,
+            "password": "password123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    token = response.json()["access_token"]
+
+    return {
+        "Authorization": f"Bearer {token}",
+    }
+
+
 def test_pagination(client, db_session):
     user1, user2, user3 = setup_users_and_wallets(db_session)
+    headers = login_and_get_headers(client, user1)
 
     create_transfer(db_session, user1, user2, 100)
     create_transfer(db_session, user1, user3, 200)
     create_transfer(db_session, user2, user1, 300)
 
     response = client.get(
-        f"/transfers/user/{user1.id}?page=1&limit=2"
+        f"/transfers/user/{user1.id}?page=1&limit=2",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -83,6 +107,7 @@ def test_pagination(client, db_session):
 
 def test_status_filter(client, db_session):
     user1, user2, _ = setup_users_and_wallets(db_session)
+    headers = login_and_get_headers(client, user1)
 
     create_transfer(
         db_session,
@@ -101,7 +126,8 @@ def test_status_filter(client, db_session):
     )
 
     response = client.get(
-        f"/transfers/user/{user1.id}?status=SUCCESS"
+        f"/transfers/user/{user1.id}?status=SUCCESS",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -115,13 +141,15 @@ def test_status_filter(client, db_session):
 
 def test_sorting_by_amount(client, db_session):
     user1, user2, user3 = setup_users_and_wallets(db_session)
+    headers = login_and_get_headers(client, user1)
 
     create_transfer(db_session, user1, user2, 100)
     create_transfer(db_session, user1, user3, 300)
     create_transfer(db_session, user2, user1, 200)
 
     response = client.get(
-        f"/transfers/user/{user1.id}?sort=amount"
+        f"/transfers/user/{user1.id}?sort=amount",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -136,12 +164,14 @@ def test_sorting_by_amount(client, db_session):
 
 def test_search_by_counterparty_name(client, db_session):
     user1, user2, user3 = setup_users_and_wallets(db_session)
+    headers = login_and_get_headers(client, user1)
 
     create_transfer(db_session, user1, user2, 100)
     create_transfer(db_session, user1, user3, 200)
 
     response = client.get(
-        f"/transfers/user/{user1.id}?search=Bob"
+        f"/transfers/user/{user1.id}?search=Bob",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -155,6 +185,7 @@ def test_search_by_counterparty_name(client, db_session):
 
 def test_combined_query_parameters(client, db_session):
     user1, user2, user3 = setup_users_and_wallets(db_session)
+    headers = login_and_get_headers(client, user1)
 
     create_transfer(
         db_session,
@@ -182,7 +213,8 @@ def test_combined_query_parameters(client, db_session):
 
     response = client.get(
         f"/transfers/user/{user1.id}"
-        "?page=1&limit=1&status=SUCCESS&sort=amount&search=Charlie"
+        "?page=1&limit=1&status=SUCCESS&sort=amount&search=Charlie",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -198,23 +230,28 @@ def test_combined_query_parameters(client, db_session):
 
 def test_invalid_query_parameters(client, db_session):
     user1, _, _ = setup_users_and_wallets(db_session)
+    headers = login_and_get_headers(client, user1)
 
     response = client.get(
-        f"/transfers/user/{user1.id}?page=0"
+        f"/transfers/user/{user1.id}?page=0",
+        headers=headers,
     )
     assert response.status_code == 422
 
     response = client.get(
-        f"/transfers/user/{user1.id}?limit=101"
+        f"/transfers/user/{user1.id}?limit=101",
+        headers=headers,
     )
     assert response.status_code == 422
 
     response = client.get(
-        f"/transfers/user/{user1.id}?status=INVALID"
+        f"/transfers/user/{user1.id}?status=INVALID",
+        headers=headers,
     )
     assert response.status_code == 422
 
     response = client.get(
-        f"/transfers/user/{user1.id}?sort=invalid"
+        f"/transfers/user/{user1.id}?sort=invalid",
+        headers=headers,
     )
     assert response.status_code == 422

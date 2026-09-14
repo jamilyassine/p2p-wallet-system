@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.models.transfers import TransferStatus
@@ -11,6 +11,8 @@ from app.schemas.transfer import (
     PaginatedTransfersResponse,
 )
 from app.services import transfer_service
+from app.core.dependencies import get_current_user
+from app.models.user import User
 
 
 router = APIRouter(
@@ -26,11 +28,12 @@ router = APIRouter(
 def create_transfer_endpoint(
     request: TransferRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     response = transfer_service.transfer_money(
         db=db,
         request_id=request.request_id,
-        sender_id=request.sender_id,
+        sender_id=current_user.id,
         receiver_id=request.receiver_id,
         amount=request.amount,
     )
@@ -58,10 +61,18 @@ def get_transfers_by_user_id_endpoint(
     status: TransferStatus | None = Query(None),
     sort: TransferSort | None = Query(None),
     search: str | None = Query(None),
+    current_user: User = Depends(get_current_user),
 ):
+
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to access this user's transfers",
+        )
+
     return transfer_service.get_transfers_by_user_id(
         db,
-        user_id,
+        current_user.id,
         page,
         limit,
         status,

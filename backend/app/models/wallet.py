@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
+from app.models.transfers import Transfer
 
 from sqlalchemy import (
     CheckConstraint,
@@ -12,6 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+from app.models.ledger_entry import LedgerEntry
 
 
 class Wallet(Base):

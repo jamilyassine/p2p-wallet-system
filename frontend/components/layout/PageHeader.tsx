@@ -1,8 +1,13 @@
+import Link from "next/link";
+import { Bell, UserRound } from "lucide-react";
+
 type PageHeaderProps = {
     title: string;
     subtitle: string;
     userName?: string;
     userEmail?: string;
+    showNotification?: boolean;
+    showUser?: boolean;
 };
 
 export default function PageHeader({
@@ -10,6 +15,8 @@ export default function PageHeader({
     subtitle,
     userName,
     userEmail,
+    showNotification = true,
+    showUser = true,
 }: PageHeaderProps) {
     return (
         <header className="mb-6 flex items-start justify-between">
@@ -23,24 +30,34 @@ export default function PageHeader({
                 </p>
             </div>
 
-            <div className="flex items-center gap-3">
-                <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white">
-                    🔔
-                </button>
+            {showUser && (
+                <div className="flex items-center gap-3">
+                    {showNotification && (
+                        <button className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600">
+                            <Bell size={17} />
+                        </button>
+                    )}
 
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">
-                    {userName?.charAt(0).toUpperCase()}
-                </div>
+                    <Link
+                        href="/profile"
+                        className="flex items-center gap-3"
+                    >
+                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+                            <UserRound size={18} />
+                        </div>
 
-                <div className="hidden sm:block">
-                    <p className="text-sm font-semibold text-slate-800">
-                        {userName}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                        {userEmail}
-                    </p>
+                        <div className="hidden sm:block">
+                            <p className="text-sm font-semibold text-slate-800">
+                                {userName}
+                            </p>
+
+                            <p className="text-xs text-slate-500">
+                                {userEmail}
+                            </p>
+                        </div>
+                    </Link>
                 </div>
-            </div>
+            )}
         </header>
     );
 }

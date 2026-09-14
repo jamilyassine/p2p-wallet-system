@@ -13,7 +13,6 @@ class TransferSort(str, Enum):
 
 class TransferRequest(BaseModel):
     request_id: UUID
-    sender_id: int
     receiver_id: int
     amount: Decimal
 
@@ -23,7 +22,10 @@ class TransferResponse(BaseModel):
     transfer_id: int | None = None
     amount: Decimal | None = None
     sender_id: int | None = None
+    sender_name: str | None = None
     receiver_id: int | None = None
+    receiver_name: str | None = None
+    created_at: datetime | None = None
     error_code: str | None = None
 
 
@@ -46,3 +48,5 @@ class PaginatedTransfersResponse(BaseModel):
     page_size: int
     total: int
     transactions: list[TransferRead]
+
+    

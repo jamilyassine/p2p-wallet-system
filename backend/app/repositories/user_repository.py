@@ -29,8 +29,14 @@ class UserRepository:
         self,
         db: Session,
         user_data: UserCreate,
+        hashed_password: str,
     ) -> User:
-        user = User( name=user_data.name, email=user_data.email, ) 
+
+        user = User(
+            name=user_data.name,
+            email=user_data.email,
+            password_hash=hashed_password,
+        )
         db.add(user) 
         db.commit() 
         db.refresh(user) 

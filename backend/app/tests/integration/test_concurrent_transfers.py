@@ -3,12 +3,31 @@ from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
+from app.core.security import hash_password
 from app.db.session import SessionLocal
 from app.main import app
 from app.models.user import User
 from app.models.wallet import Wallet
 from app.models.ledger_entry import LedgerEntry, LedgerEntryType
 from app.models.transfers import Transfer
+
+
+def login_and_get_headers(client, email):
+    response = client.post(
+        "/users/login",
+        json={
+            "email": email,
+            "password": "password123",
+        },
+    )
+
+    assert response.status_code == 200
+
+    token = response.json()["access_token"]
+
+    return {
+        "Authorization": f"Bearer {token}",
+    }
 
 
 def test_concurrent_transfers_from_same_wallet():
@@ -22,16 +41,19 @@ def test_concurrent_transfers_from_same_wallet():
     sender_user = User(
         name="Sender",
         email=f"sender-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     receiver_1_user = User(
         name="Receiver 1",
         email=f"receiver-1-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     receiver_2_user = User(
         name="Receiver 2",
         email=f"receiver-2-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     db.add_all([
@@ -46,8 +68,8 @@ def test_concurrent_transfers_from_same_wallet():
     db.refresh(receiver_1_user)
     db.refresh(receiver_2_user)
 
-    # Capture primitive IDs BEFORE closing the session
     sender_user_id = sender_user.id
+    sender_user_email = sender_user.email
     receiver_1_user_id = receiver_1_user.id
     receiver_2_user_id = receiver_2_user.id
 
@@ -78,12 +100,21 @@ def test_concurrent_transfers_from_same_wallet():
     db.refresh(receiver_1_wallet)
     db.refresh(receiver_2_wallet)
 
-    # Capture wallet IDs before closing the session
     sender_wallet_id = sender_wallet.id
     receiver_1_wallet_id = receiver_1_wallet.id
     receiver_2_wallet_id = receiver_2_wallet.id
 
     db.close()
+
+    # ---------------------------------------------------------
+    # Authentication
+    # ---------------------------------------------------------
+
+    auth_client = TestClient(app)
+    headers = login_and_get_headers(
+        auth_client,
+        sender_user_email,
+    )
 
     # ---------------------------------------------------------
     # Concurrent requests
@@ -106,6 +137,7 @@ def test_concurrent_transfers_from_same_wallet():
                 "amount": 80,
                 "request_id": str(request_id),
             },
+            headers=headers,
         )
 
         responses.append(response)
@@ -165,9 +197,8 @@ def test_concurrent_transfers_from_same_wallet():
     db.close()
 
 
-
-
 def test_concurrent_duplicate_transfer_requests():
+
     # ---------------------------------------------------------
     # Arrange
     # ---------------------------------------------------------
@@ -177,11 +208,13 @@ def test_concurrent_duplicate_transfer_requests():
     sender_user = User(
         name="Sender",
         email=f"sender-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     receiver_user = User(
         name="Receiver",
         email=f"receiver-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
     )
 
     db.add_all([
@@ -195,6 +228,7 @@ def test_concurrent_duplicate_transfer_requests():
     db.refresh(receiver_user)
 
     sender_user_id = sender_user.id
+    sender_user_email = sender_user.email
     receiver_user_id = receiver_user.id
 
     sender_wallet = Wallet(
@@ -223,6 +257,16 @@ def test_concurrent_duplicate_transfer_requests():
     db.close()
 
     # ---------------------------------------------------------
+    # Authentication
+    # ---------------------------------------------------------
+
+    auth_client = TestClient(app)
+    headers = login_and_get_headers(
+        auth_client,
+        sender_user_email,
+    )
+
+    # ---------------------------------------------------------
     # Concurrent identical requests
     # ---------------------------------------------------------
 
@@ -232,6 +276,7 @@ def test_concurrent_duplicate_transfer_requests():
     request_id = uuid4()
 
     def send_transfer():
+
         client = TestClient(app)
 
         barrier.wait()
@@ -244,6 +289,7 @@ def test_concurrent_duplicate_transfer_requests():
                 "amount": 80,
                 "request_id": str(request_id),
             },
+            headers=headers,
         )
 
         responses.append(response)
