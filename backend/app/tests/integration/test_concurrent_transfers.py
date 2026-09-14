@@ -72,6 +72,8 @@ def test_concurrent_transfers_from_same_wallet():
     sender_user_email = sender_user.email
     receiver_1_user_id = receiver_1_user.id
     receiver_2_user_id = receiver_2_user.id
+    receiver_1_user_email = receiver_1_user.email
+    receiver_2_user_email = receiver_2_user.email
 
     sender_wallet = Wallet(
         user_id=sender_user_id,
@@ -123,7 +125,7 @@ def test_concurrent_transfers_from_same_wallet():
     barrier = threading.Barrier(2)
     responses = []
 
-    def send_transfer(receiver_id, request_id):
+    def send_transfer(receiver_email, request_id):
 
         client = TestClient(app)
 
@@ -133,7 +135,7 @@ def test_concurrent_transfers_from_same_wallet():
             "/transfers/",
             json={
                 "sender_id": sender_user_id,
-                "receiver_id": receiver_id,
+                "to_email": receiver_email,
                 "amount": 80,
                 "request_id": str(request_id),
             },
@@ -147,12 +149,12 @@ def test_concurrent_transfers_from_same_wallet():
 
     thread_1 = threading.Thread(
         target=send_transfer,
-        args=(receiver_1_user_id, request_id_1),
+        args=(receiver_1_user_email, request_id_1),
     )
 
     thread_2 = threading.Thread(
         target=send_transfer,
-        args=(receiver_2_user_id, request_id_2),
+        args=(receiver_2_user_email, request_id_2),
     )
 
     thread_1.start()
@@ -196,7 +198,6 @@ def test_concurrent_transfers_from_same_wallet():
 
     db.close()
 
-
 def test_concurrent_duplicate_transfer_requests():
 
     # ---------------------------------------------------------
@@ -230,6 +231,7 @@ def test_concurrent_duplicate_transfer_requests():
     sender_user_id = sender_user.id
     sender_user_email = sender_user.email
     receiver_user_id = receiver_user.id
+    receiver_user_email = receiver_user.email
 
     sender_wallet = Wallet(
         user_id=sender_user_id,
@@ -285,7 +287,7 @@ def test_concurrent_duplicate_transfer_requests():
             "/transfers/",
             json={
                 "sender_id": sender_user_id,
-                "receiver_id": receiver_user_id,
+                "to_email": receiver_user_email,
                 "amount": 80,
                 "request_id": str(request_id),
             },

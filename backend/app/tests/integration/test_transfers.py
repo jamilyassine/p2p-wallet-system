@@ -75,7 +75,7 @@ def test_successful_transfer(client, db_session):
         "/transfers/",
         json={
             "sender_id": user1.id,
-            "receiver_id": user2.id,
+            "to_email": user2.email,  
             "amount": 200,
             "request_id": str(request_id),
         },
@@ -155,8 +155,7 @@ def test_insufficient_funds(client, db_session):
     response = client.post(
         "/transfers/",
         json={
-            "sender_id": user1.id,
-            "receiver_id": user2.id,
+            "to_email": user2.email,
             "amount": 200,
             "request_id": str(request_id),
         },
@@ -191,7 +190,6 @@ def test_insufficient_funds(client, db_session):
         == 0
     )
 
-
 def test_invalid_wallet(client, db_session):
 
     user1 = User(
@@ -200,9 +198,17 @@ def test_invalid_wallet(client, db_session):
         password_hash=hash_password("password123"),
     )
 
-    db_session.add(user1)
+    user2 = User(
+        name="Bob",
+        email=f"bob-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    db_session.add_all([user1, user2])
     db_session.commit()
+
     db_session.refresh(user1)
+    db_session.refresh(user2)
 
     sender = Wallet(
         user_id=user1.id,
@@ -224,8 +230,7 @@ def test_invalid_wallet(client, db_session):
     response = client.post(
         "/transfers/",
         json={
-            "sender_id": user1.id,
-            "receiver_id": 999999,
+            "to_email": user2.email,
             "amount": 200,
             "request_id": str(request_id),
         },
@@ -253,7 +258,6 @@ def test_invalid_wallet(client, db_session):
         .count()
         == 0
     )
-
 
 def test_idempotent_retry(client, db_session):
 
@@ -302,8 +306,7 @@ def test_idempotent_retry(client, db_session):
     response1 = client.post(
         "/transfers/",
         json={
-            "sender_id": user1.id,
-            "receiver_id": user2.id,
+            "to_email": user2.email,
             "amount": 200,
             "request_id": str(request_id),
         },
@@ -321,8 +324,7 @@ def test_idempotent_retry(client, db_session):
     response2 = client.post(
         "/transfers/",
         json={
-            "sender_id": user1.id,
-            "receiver_id": user2.id,
+            "to_email": user2.email,
             "amount": 200,
             "request_id": str(request_id),
         },
@@ -357,7 +359,6 @@ def test_idempotent_retry(client, db_session):
         == 2
     )
 
-
 def test_self_transfer(client, db_session):
 
     user = User(
@@ -390,8 +391,7 @@ def test_self_transfer(client, db_session):
     response = client.post(
         "/transfers/",
         json={
-            "sender_id": user.id,
-            "receiver_id": user.id,
+            "to_email": user.email,
             "amount": 200,
             "request_id": str(request_id),
         },
@@ -422,7 +422,6 @@ def test_self_transfer(client, db_session):
         .count()
         == 0
     )
-
 
 def test_invalid_amount(client, db_session):
 
@@ -471,8 +470,7 @@ def test_invalid_amount(client, db_session):
     response = client.post(
         "/transfers/",
         json={
-            "sender_id": user1.id,
-            "receiver_id": user2.id,
+            "to_email": user2.email,
             "amount": 0,
             "request_id": str(request_id),
         },
@@ -505,7 +503,6 @@ def test_invalid_amount(client, db_session):
         .count()
         == 0
     )
-
 
 def test_ledger_recent_requires_auth(client):
     response = client.get("/ledger/recent")
@@ -606,3 +603,357 @@ def test_user_cannot_access_transfer_they_are_not_involved_in(
     )
 
     assert response.status_code == 403
+
+
+def test_recipient_email_not_found(client, db_session):
+    user1 = User(
+        name="Alice",
+        email=f"alice-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    db_session.add(user1)
+    db_session.commit()
+    db_session.refresh(user1)
+
+    sender = Wallet(
+        user_id=user1.id,
+        balance=1000,
+    )
+
+    db_session.add(sender)
+    db_session.commit()
+    db_session.refresh(sender)
+
+    request_id = uuid4()
+
+    headers = login_and_get_headers(
+        client,
+        user1.email,
+        "password123",
+    )
+
+    response = client.post(
+        "/transfers/",
+        json={
+            "sender_id": user1.id,
+            "to_email": "does-not-exist@example.com",
+            "amount": 200,
+            "request_id": str(request_id),
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 404
+
+    db_session.refresh(sender)
+
+    assert sender.balance == 1000
+
+    assert (
+        db_session.query(Transfer)
+        .filter(Transfer.request_id == request_id)
+        .count()
+        == 0
+    )
+
+    assert (
+        db_session.query(LedgerEntry)
+        .join(Transfer)
+        .filter(Transfer.request_id == request_id)
+        .count()
+        == 0
+    )
+
+
+def test_self_transfer_by_email(client, db_session):
+    user = User(
+        name="Alice",
+        email=f"alice-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    wallet = Wallet(
+        user_id=user.id,
+        balance=1000,
+    )
+
+    db_session.add(wallet)
+    db_session.commit()
+    db_session.refresh(wallet)
+
+    request_id = uuid4()
+
+    headers = login_and_get_headers(
+        client,
+        user.email,
+        "password123",
+    )
+
+    response = client.post(
+        "/transfers/",
+        json={
+            "sender_id": user.id,
+            "to_email": user.email,
+            "amount": 200,
+            "request_id": str(request_id),
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["status"] == "FAILED"
+    assert response.json()["error_code"] == "SELF_TRANSFER"
+
+    db_session.refresh(wallet)
+
+    assert wallet.balance == 1000
+
+    transfer = (
+        db_session.query(Transfer)
+        .filter(Transfer.request_id == request_id)
+        .one()
+    )
+
+    assert transfer.status == TransferStatus.FAILED
+    assert transfer.error_code == "SELF_TRANSFER"
+
+    assert (
+        db_session.query(LedgerEntry)
+        .join(Transfer)
+        .filter(Transfer.request_id == request_id)
+        .count()
+        == 0
+    )
+
+
+def test_invalid_recipient_email_format(client, db_session):
+    user = User(
+        name="Alice",
+        email=f"alice-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    wallet = Wallet(
+        user_id=user.id,
+        balance=1000,
+    )
+
+    db_session.add(wallet)
+    db_session.commit()
+
+    request_id = uuid4()
+
+    headers = login_and_get_headers(
+        client,
+        user.email,
+        "password123",
+    )
+
+    response = client.post(
+        "/transfers/",
+        json={
+            "sender_id": user.id,
+            "to_email": "not-an-email",
+            "amount": 200,
+            "request_id": str(request_id),
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+
+def test_empty_recipient_email(client, db_session):
+    user = User(
+        name="Alice",
+        email=f"alice-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    wallet = Wallet(
+        user_id=user.id,
+        balance=1000,
+    )
+
+    db_session.add(wallet)
+    db_session.commit()
+
+    request_id = uuid4()
+
+    headers = login_and_get_headers(
+        client,
+        user.email,
+        "password123",
+    )
+
+    response = client.post(
+        "/transfers/",
+        json={
+            "sender_id": user.id,
+            "to_email": "",
+            "amount": 200,
+            "request_id": str(request_id),
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_recipient_email_case_insensitive(client, db_session):
+    user1 = User(
+        name="Alice",
+        email=f"alice-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    user2 = User(
+        name="Bob",
+        email=f"bob-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    db_session.add_all([user1, user2])
+    db_session.commit()
+    db_session.refresh(user1)
+    db_session.refresh(user2)
+
+    sender = Wallet(
+        user_id=user1.id,
+        balance=1000,
+    )
+
+    receiver = Wallet(
+        user_id=user2.id,
+        balance=500,
+    )
+
+    db_session.add_all([sender, receiver])
+    db_session.commit()
+
+    request_id = uuid4()
+
+    headers = login_and_get_headers(
+        client,
+        user1.email,
+        "password123",
+    )
+
+    response = client.post(
+        "/transfers/",
+        json={
+            "sender_id": user1.id,
+            "to_email": user2.email.upper(),
+            "amount": 200,
+            "request_id": str(request_id),
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+
+    db_session.refresh(sender)
+    db_session.refresh(receiver)
+
+    assert sender.balance == 800
+    assert receiver.balance == 700
+
+
+def test_idempotent_retry_by_email(client, db_session):
+    user1 = User(
+        name="Alice",
+        email=f"alice-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    user2 = User(
+        name="Bob",
+        email=f"bob-{uuid4()}@example.com",
+        password_hash=hash_password("password123"),
+    )
+
+    db_session.add_all([user1, user2])
+    db_session.commit()
+
+    sender = Wallet(user_id=user1.id, balance=1000)
+    receiver = Wallet(user_id=user2.id, balance=500)
+
+    db_session.add_all([sender, receiver])
+    db_session.commit()
+
+    request_id = uuid4()
+
+    headers = login_and_get_headers(
+        client,
+        user1.email,
+        "password123",
+    )
+
+    payload = {
+        "sender_id": user1.id,
+        "to_email": user2.email,
+        "amount": 200,
+        "request_id": str(request_id),
+    }
+
+    response1 = client.post(
+        "/transfers/",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response1.status_code == 200
+
+    db_session.refresh(sender)
+    db_session.refresh(receiver)
+
+    assert sender.balance == 800
+    assert receiver.balance == 700
+
+    response2 = client.post(
+        "/transfers/",
+        json=payload,
+        headers=headers,
+    )
+
+    assert response2.status_code == 200
+
+    db_session.refresh(sender)
+    db_session.refresh(receiver)
+
+    assert sender.balance == 800
+    assert receiver.balance == 700
+
+    assert (
+        db_session.query(Transfer)
+        .filter(Transfer.request_id == request_id)
+        .count()
+        == 1
+    )
+
+    transfer = (
+        db_session.query(Transfer)
+        .filter(Transfer.request_id == request_id)
+        .one()
+    )
+
+    assert (
+        db_session.query(LedgerEntry)
+        .filter(LedgerEntry.transfer_id == transfer.id)
+        .count()
+        == 2
+    )

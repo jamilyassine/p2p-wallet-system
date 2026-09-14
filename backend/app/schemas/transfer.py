@@ -2,7 +2,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, EmailStr
 
 from enum import Enum
 
@@ -13,9 +13,8 @@ class TransferSort(str, Enum):
 
 class TransferRequest(BaseModel):
     request_id: UUID
-    receiver_id: int
+    to_email: EmailStr
     amount: Decimal
-
 
 class TransferResponse(BaseModel):
     status: str

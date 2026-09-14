@@ -18,6 +18,7 @@ from app.repositories.ledger_repository import ledger_repository
 from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
 from app.schemas.transfer import TransferSort
+from app.repositories.user_repository import user_repository
 
 
 def _validate_business_invariants(
@@ -115,7 +116,7 @@ def _fail_transfer(
 def transfer_money(
     db: Session,
     sender_id: int,
-    receiver_id: int,
+    receiver_email: str,
     amount: Decimal,
     request_id: UUID,
 ) -> dict:
@@ -131,9 +132,14 @@ def transfer_money(
             sender_id,
         )
 
+        receiver = user_repository.get_by_email(db, receiver_email)
+
+        if receiver is None:
+            raise WalletNotFoundException()
+
         receiver_wallet = wallet_repository.get_by_user_id(
             db,
-            receiver_id,
+            receiver.id,
         )
 
         if sender_wallet is None or receiver_wallet is None:
@@ -183,7 +189,7 @@ def transfer_money(
             sender_wallet, receiver_wallet = _validate_business_invariants(
                 db,
                 sender_id,
-                receiver_id,
+                receiver.id,
                 amount,
             )
 
@@ -249,7 +255,7 @@ def transfer_money(
             "amount": str(amount),
             "sender_id": sender_id,
             "sender_name": sender_user.name,
-            "receiver_id": receiver_id,
+            "receiver_id": receiver.id,
             "receiver_name": receiver_user.name,
             "created_at": transfer.completed_at.isoformat(),
         }

@@ -1,10 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { getAccessToken } from "@/lib/auth";
+
+function subscribe(callback: () => void) {
+    window.addEventListener("storage", callback);
+    return () => {
+        window.removeEventListener("storage", callback);
+    };
+}
+
+function getClientSnapshot() {
+    return getAccessToken();
+}
+
+function getServerSnapshot() {
+    return null;
+}
 
 export default function Layout({
     children,
@@ -12,20 +27,20 @@ export default function Layout({
     children: React.ReactNode;
 }) {
     const router = useRouter();
-    const [authChecked, setAuthChecked] = useState(false);
+
+    const token = useSyncExternalStore(
+        subscribe,
+        getClientSnapshot,
+        getServerSnapshot
+    );
 
     useEffect(() => {
-        const token = getAccessToken();
-
         if (!token) {
             router.replace("/login");
-            return;
         }
+    }, [token, router]);
 
-        setAuthChecked(true);
-    }, [router]);
-
-    if (!authChecked) {
+    if (!token) {
         return null;
     }
 

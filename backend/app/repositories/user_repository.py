@@ -1,6 +1,7 @@
 from app.models.user import User
 from app.schemas.user import UserCreate
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 
 class UserRepository:
@@ -23,7 +24,11 @@ class UserRepository:
         db: Session,
         email: str,
     ) -> User | None:
-        return ( db.query(User) .filter(User.email == email) .first() )
+        return (
+            db.query(User)
+            .filter(func.lower(User.email) == email.lower())
+            .first()
+        )
 
     def create(
         self,

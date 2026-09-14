@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 
@@ -14,11 +14,56 @@ type TransferSuccessData = {
     created_at?: string;
 };
 
+let cachedRawTransfer: string | null = null;
+let cachedTransfer: TransferSuccessData | null = null;
+
+function getTransferSnapshot(): TransferSuccessData | null {
+    if (typeof window === "undefined") {
+        return null;
+    }
+
+    const storedTransfer = sessionStorage.getItem("transfer_success");
+
+    if (storedTransfer === cachedRawTransfer) {
+        return cachedTransfer;
+    }
+
+    cachedRawTransfer = storedTransfer;
+
+    if (!storedTransfer) {
+        cachedTransfer = null;
+        return cachedTransfer;
+    }
+
+    try {
+        cachedTransfer = JSON.parse(storedTransfer);
+    } catch {
+        cachedTransfer = null;
+    }
+
+    return cachedTransfer;
+}
+
+function getServerSnapshot(): TransferSuccessData | null {
+    return null;
+}
+
+function subscribe(callback: () => void) {
+    window.addEventListener("storage", callback);
+
+    return () => {
+        window.removeEventListener("storage", callback);
+    };
+}
+
 export default function TransferSuccessfulPage() {
     const router = useRouter();
 
-    const [transfer, setTransfer] =
-        useState<TransferSuccessData | null>(null);
+    const transfer = useSyncExternalStore(
+        subscribe,
+        getTransferSnapshot,
+        getServerSnapshot
+    );
 
     useEffect(() => {
         if (!getAccessToken()) {
@@ -26,22 +71,11 @@ export default function TransferSuccessfulPage() {
             return;
         }
 
-        const storedTransfer = sessionStorage.getItem(
-            "transfer_success"
-        );
-
-        if (!storedTransfer) {
-            router.replace("/dashboard");
-            return;
-        }
-
-        try {
-            setTransfer(JSON.parse(storedTransfer));
-        } catch {
+        if (!transfer) {
             sessionStorage.removeItem("transfer_success");
             router.replace("/dashboard");
         }
-    }, [router]);
+    }, [router, transfer]);
 
     const formattedDate = transfer?.created_at
         ? new Date(transfer.created_at).toLocaleString()
@@ -57,7 +91,6 @@ export default function TransferSuccessfulPage() {
                 overflow: "hidden",
             }}
         >
-            {/* Main content */}
             <div
                 style={{
                     width: "100%",
@@ -66,7 +99,6 @@ export default function TransferSuccessfulPage() {
                     textAlign: "center",
                 }}
             >
-                {/* Success area */}
                 <div
                     style={{
                         position: "relative",
@@ -75,7 +107,6 @@ export default function TransferSuccessfulPage() {
                         margin: "0 auto",
                     }}
                 >
-                    {/* Confetti */}
                     <span
                         style={{
                             position: "absolute",
@@ -211,7 +242,6 @@ export default function TransferSuccessfulPage() {
                         }}
                     />
 
-                    {/* Success icon */}
                     <div
                         style={{
                             position: "absolute",
@@ -259,7 +289,6 @@ export default function TransferSuccessfulPage() {
                     Your money has been sent successfully.
                 </p>
 
-                {/* Transfer card */}
                 <div
                     style={{
                         width: "560px",
@@ -329,7 +358,6 @@ export default function TransferSuccessfulPage() {
                     </div>
                 </div>
 
-                {/* Buttons */}
                 <div
                     style={{
                         width: "560px",

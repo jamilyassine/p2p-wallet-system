@@ -158,7 +158,7 @@ export default function LoginPage() {
                             </button>
 
                             <p className="text-center text-sm text-slate-500">
-                                Don't have an account?{" "}
+                                Don&apos;t have an account?{" "}
                                 <button
                                     onClick={() => router.push("/register")}
                                     className="font-medium text-purple-600 hover:text-purple-700"
@@ -173,5 +173,3 @@ export default function LoginPage() {
         </div>
     );
 }
-
-

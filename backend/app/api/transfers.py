@@ -34,7 +34,7 @@ def create_transfer_endpoint(
         db=db,
         request_id=request.request_id,
         sender_id=current_user.id,
-        receiver_id=request.receiver_id,
+        receiver_email=request.to_email,
         amount=request.amount,
     )
 

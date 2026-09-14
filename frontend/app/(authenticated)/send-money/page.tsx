@@ -16,7 +16,7 @@ function SendMoneyContent() {
     const router = useRouter();
 
     const [user, setUser] = useState<UserResponse | null>(null);
-    const [receiverId, setReceiverId] = useState("");
+    const [receiverEmail, setReceiverEmail] = useState("");
     const [amount, setAmount] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +52,7 @@ function SendMoneyContent() {
                 },
                 body: JSON.stringify({
                     request_id: crypto.randomUUID(),
-                    receiver_id: Number(receiverId),
+                    to_email: receiverEmail,
                     amount: Number(amount),
                 }),
             });
@@ -78,7 +78,9 @@ function SendMoneyContent() {
                       ? "You cannot send money to yourself."
                       : data.error_code === "INVALID_TRANSFER_AMOUNT"
                         ? "Enter a valid transfer amount."
-                        : "An unexpected error occurred."
+                        : data.error === "Wallet not found"
+                          ? "Recipient not found."
+                          : "An unexpected error occurred."
             );
         } catch (error) {
             console.error(error);
@@ -107,10 +109,10 @@ function SendMoneyContent() {
                         {/* Recipient */}
                         <div>
                             <label
-                                htmlFor="receiver"
+                                htmlFor="receiverEmail"
                                 className="mb-2 block text-sm font-medium text-gray-800"
                             >
-                                Recipient User ID
+                                Recipient Email
                             </label>
 
                             <div className="relative">
@@ -120,12 +122,12 @@ function SendMoneyContent() {
                                 />
 
                                 <input
-                                    id="receiver"
-                                    type="number"
-                                    placeholder="Enter recipient user ID"
-                                    value={receiverId}
+                                    id="receiverEmail"
+                                    type="email"
+                                    placeholder="Enter recipient email"
+                                    value={receiverEmail}
                                     onChange={(e) =>
-                                        setReceiverId(e.target.value)
+                                        setReceiverEmail(e.target.value)
                                     }
                                     required
                                     className="h-11 w-full rounded-lg border border-gray-200 bg-white pl-10 pr-4 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
