@@ -10,7 +10,7 @@ export default function DashboardCard({
     value,
 }: DashboardCardProps) {
     return (
-        <section className="w-full min-h-[180px] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <section className="w-full min-h-[180px] bg-white rounded-xl border border-gray-200 shadow-sm">
             <h2 className="px-5 pt-4 text-base font-semibold">
                 {title}
             </h2>
@@ -21,3 +21,5 @@ export default function DashboardCard({
         </section>
     );
 }
+
+

@@ -19,6 +19,7 @@ from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
 from app.schemas.transfer import TransferSort
 from app.repositories.user_repository import user_repository
+from app.services.notification_service import notification_service
 
 
 def _validate_business_invariants(
@@ -259,6 +260,13 @@ def transfer_money(
             "receiver_name": receiver_user.name,
             "created_at": transfer.completed_at.isoformat(),
         }
+
+        notification_service.create_notification(
+            db=db,
+            user_id=receiver.id,
+            notification_type="TRANSFER_RECEIVED",
+            message=f"{sender_user.name} sent you ${amount:.2f}.",
+        )
 
         return transfer.response_json
 

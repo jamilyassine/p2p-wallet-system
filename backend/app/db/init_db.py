@@ -8,9 +8,11 @@ so they are registered with Base.metadata.
 from app.db.session import Base, engine
 
 # Import models so SQLAlchemy registers them with Base.metadata.
+from app.models.notification import Notification
 from app.models.transfers import Transfer
 from app.models.user import User
 from app.models.wallet import Wallet
+
 
 
 #Base.metadata.create_all(bind=engine)

@@ -216,7 +216,7 @@ function DashboardContent() {
                                 <img
                                     src="/images/wallet.png"
                                     alt="Wallet"
-                                    className="absolute right-1/4 top-[45%] h-52 w-64 -translate-y-1/2 object-contain"
+                                    className="pointer-events-none absolute right-1/4 top-[45%] h-52 w-64 -translate-y-1/2 object-contain"
                                 />
                             </div>
                         ) : (

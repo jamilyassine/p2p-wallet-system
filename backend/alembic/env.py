@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.wallet import Wallet
 from app.models.transfers import Transfer
 from app.models.ledger_entry import LedgerEntry
+from app.models.notification import Notification
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
