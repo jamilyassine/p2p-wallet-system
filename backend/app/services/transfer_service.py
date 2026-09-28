@@ -17,17 +17,18 @@ from app.models.wallet import Wallet
 from app.repositories.ledger_repository import ledger_repository
 from app.repositories.transfer_repository import transfer_repository
 from app.repositories.wallet_repository import wallet_repository
-from app.schemas.transfer import TransferSort
 from app.repositories.user_repository import user_repository
+from app.schemas.transfer import TransferSort
 from app.services.notification_service import notification_service
 
 
 def _validate_business_invariants(
-    db: Session,
+    sender_wallet: Wallet,
+    receiver_wallet: Wallet,
     sender_id: int,
     receiver_id: int,
     amount: Decimal,
-) -> tuple[Wallet, Wallet]:
+) -> None:
 
     if amount <= 0:
         raise InvalidTransferAmountException()
@@ -35,49 +36,27 @@ def _validate_business_invariants(
     if sender_id == receiver_id:
         raise SelfTransferException()
 
-    # Lock both wallets in deterministic user ID order.
-    wallet_ids = sorted([sender_id, receiver_id])
-
-    wallets = {}
-
-    for user_id in wallet_ids:
-        wallet = wallet_repository.get_by_user_id_for_update(
-            db,
-            user_id,
-        )
-
-        if wallet is None:
-            raise WalletNotFoundException()
-
-        wallets[user_id] = wallet
-
-    sender_wallet = wallets[sender_id]
-    receiver_wallet = wallets[receiver_id]
-
-    # Balance validation happens after both wallets are locked.
     if sender_wallet.balance < amount:
         raise InsufficientBalanceException()
-
-    return sender_wallet, receiver_wallet
 
 
 def _create_ledger_entries(
     db: Session,
     transfer_id: int,
-    sender_wallet_id: int,
-    receiver_wallet_id: int,
+    sender_wallet: Wallet,
+    receiver_wallet: Wallet,
     amount: Decimal,
 ) -> None:
 
     debit_entry = LedgerEntry(
-        wallet_id=sender_wallet_id,
+        ledger_account_id=sender_wallet.ledger_account.id,
         transfer_id=transfer_id,
         amount=amount,
         entry_type=LedgerEntryType.DEBIT,
     )
 
     credit_entry = LedgerEntry(
-        wallet_id=receiver_wallet_id,
+        ledger_account_id=receiver_wallet.ledger_account.id,
         transfer_id=transfer_id,
         amount=amount,
         entry_type=LedgerEntryType.CREDIT,
@@ -125,18 +104,21 @@ def transfer_money(
     with db.begin():
 
         # ---------------------------------------------------------
-        # 1. Resolve wallets
+        # 1. Resolve users / wallets
         # ---------------------------------------------------------
+
+        receiver = user_repository.get_by_email(
+            db,
+            receiver_email,
+        )
+
+        if receiver is None:
+            raise WalletNotFoundException()
 
         sender_wallet = wallet_repository.get_by_user_id(
             db,
             sender_id,
         )
-
-        receiver = user_repository.get_by_email(db, receiver_email)
-
-        if receiver is None:
-            raise WalletNotFoundException()
 
         receiver_wallet = wallet_repository.get_by_user_id(
             db,
@@ -147,10 +129,35 @@ def transfer_money(
             raise WalletNotFoundException()
 
         # ---------------------------------------------------------
-        # 2. Atomically claim request_id
+        # 2. Lock wallets deterministically
         # ---------------------------------------------------------
 
-        transfer = Transfer(
+        wallet_ids = sorted(
+            [sender_id, receiver.id]
+        )
+
+        wallets = {}
+
+        for user_id in wallet_ids:
+
+            wallet = wallet_repository.get_by_user_id_for_update(
+                db,
+                user_id,
+            )
+
+            if wallet is None:
+                raise WalletNotFoundException()
+
+            wallets[user_id] = wallet
+
+        sender_wallet = wallets[sender_id]
+        receiver_wallet = wallets[receiver.id]
+
+        # ---------------------------------------------------------
+        # 3. Atomically claim request_id
+        # ---------------------------------------------------------
+
+        transfer_to_create = Transfer(
             request_id=request_id,
             sender_wallet_id=sender_wallet.id,
             receiver_wallet_id=receiver_wallet.id,
@@ -160,11 +167,11 @@ def transfer_money(
 
         created = transfer_repository.create(
             db,
-            transfer,
+            transfer_to_create,
         )
 
         # ---------------------------------------------------------
-        # 3. Lock transfer row
+        # 4. Lock transfer row
         # ---------------------------------------------------------
 
         transfer = transfer_repository.get_by_request_id_for_update(
@@ -176,19 +183,20 @@ def transfer_money(
             raise RuntimeError("Transfer record not found.")
 
         # ---------------------------------------------------------
-        # 4. Replay completed request
+        # 5. Replay completed request
         # ---------------------------------------------------------
 
         if not created:
             return transfer.response_json
 
         # ---------------------------------------------------------
-        # 5. Lock wallets + validate invariants
+        # 6. Validate business invariants
         # ---------------------------------------------------------
 
         try:
-            sender_wallet, receiver_wallet = _validate_business_invariants(
-                db,
+            _validate_business_invariants(
+                sender_wallet,
+                receiver_wallet,
                 sender_id,
                 receiver.id,
                 amount,
@@ -216,21 +224,21 @@ def transfer_money(
             )
 
         # ---------------------------------------------------------
-        # 6. Create ledger entries
+        # 7. Create ledger entries
         # ---------------------------------------------------------
 
         _create_ledger_entries(
             db,
             transfer.id,
-            sender_wallet.id,
-            receiver_wallet.id,
+            sender_wallet,
+            receiver_wallet,
             amount,
         )
 
         db.flush()
 
         # ---------------------------------------------------------
-        # 7. Update wallet balances
+        # 8. Update wallet balances
         # ---------------------------------------------------------
 
         _apply_transfer(
@@ -240,7 +248,7 @@ def transfer_money(
         )
 
         # ---------------------------------------------------------
-        # 8. Build successful response
+        # 9. Build successful response
         # ---------------------------------------------------------
 
         transfer.status = TransferStatus.SUCCESS

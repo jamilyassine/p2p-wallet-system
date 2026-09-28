@@ -1,6 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.models.ledger_account import LedgerAccount
 from app.models.ledger_entry import LedgerEntry, LedgerEntryType
 from app.models.wallet import Wallet
 
@@ -22,7 +23,15 @@ class LedgerRepository:
     ) -> list[LedgerEntry]:
         stmt = (
             select(LedgerEntry)
-            .where(LedgerEntry.wallet_id == wallet_id)
+            .join(
+                LedgerAccount,
+                LedgerEntry.ledger_account_id == LedgerAccount.id,
+            )
+            .join(
+                Wallet,
+                Wallet.ledger_account_id == LedgerAccount.id,
+            )
+            .where(Wallet.id == wallet_id)
             .order_by(LedgerEntry.created_at.desc())
         )
         return db.scalars(stmt).all()
@@ -38,9 +47,17 @@ class LedgerRepository:
 
         entries_stmt = (
             select(LedgerEntry)
-            .join(Wallet, LedgerEntry.wallet_id == Wallet.id)
+            .join(
+                LedgerAccount,
+                LedgerEntry.ledger_account_id == LedgerAccount.id,
+            )
+            .join(
+                Wallet,
+                Wallet.ledger_account_id == LedgerAccount.id,
+            )
             .options(
-                joinedload(LedgerEntry.wallet)
+                joinedload(LedgerEntry.ledger_account)
+                .joinedload(LedgerAccount.wallet)
                 .joinedload(Wallet.user)
             )
             .where(Wallet.user_id == user_id)
@@ -52,7 +69,14 @@ class LedgerRepository:
         count_stmt = (
             select(func.count())
             .select_from(LedgerEntry)
-            .join(Wallet, LedgerEntry.wallet_id == Wallet.id)
+            .join(
+                LedgerAccount,
+                LedgerEntry.ledger_account_id == LedgerAccount.id,
+            )
+            .join(
+                Wallet,
+                Wallet.ledger_account_id == LedgerAccount.id,
+            )
             .where(Wallet.user_id == user_id)
         )
 
@@ -80,6 +104,7 @@ class LedgerRepository:
             .order_by(LedgerEntry.created_at.asc())
         )
         return db.scalars(stmt).all()
+
 
 
 ledger_repository = LedgerRepository()

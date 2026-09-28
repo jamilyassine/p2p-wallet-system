@@ -1,19 +1,20 @@
 from uuid import uuid4
 
-from app.core.security import hash_password
 from app.models.transfers import Transfer, TransferStatus
-from app.models.user import User
 from app.models.wallet import Wallet
+from app.schemas.user import UserCreate
+from app.services import user_service
 
 
-def create_transfer(db_session, sender, receiver, amount, status=TransferStatus.SUCCESS):
-    sender_wallet = db_session.query(Wallet).filter(
-        Wallet.user_id == sender.id
-    ).one()
-
-    receiver_wallet = db_session.query(Wallet).filter(
-        Wallet.user_id == receiver.id
-    ).one()
+def create_transfer(
+    db_session,
+    sender,
+    receiver,
+    amount,
+    status=TransferStatus.SUCCESS,
+):
+    sender_wallet = sender.wallet
+    receiver_wallet = receiver.wallet
 
     transfer = Transfer(
         sender_wallet_id=sender_wallet.id,
@@ -31,34 +32,37 @@ def create_transfer(db_session, sender, receiver, amount, status=TransferStatus.
 
 
 def setup_users_and_wallets(db_session):
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
+    user1 = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Alice",
+            email=f"alice-{uuid4()}@example.com",
+            password="password123",
+        ),
     )
 
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
+    user2 = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Bob",
+            email=f"bob-{uuid4()}@example.com",
+            password="password123",
+        ),
     )
 
-    user3 = User(
-        name="Charlie",
-        email=f"charlie-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
+    user3 = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Charlie",
+            email=f"charlie-{uuid4()}@example.com",
+            password="password123",
+        ),
     )
 
-    db_session.add_all([user1, user2, user3])
-    db_session.commit()
+    user1.wallet.balance = 1000
+    user2.wallet.balance = 1000
+    user3.wallet.balance = 1000
 
-    wallets = [
-        Wallet(user_id=user1.id, balance=1000),
-        Wallet(user_id=user2.id, balance=1000),
-        Wallet(user_id=user3.id, balance=1000),
-    ]
-
-    db_session.add_all(wallets)
     db_session.commit()
 
     return user1, user2, user3
@@ -75,10 +79,8 @@ def login_and_get_headers(client, user):
 
     assert response.status_code == 200
 
-    token = response.json()["access_token"]
-
     return {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {response.json()['access_token']}",
     }
 
 

@@ -1,7 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from app.models.transfers import Transfer
 
 from sqlalchemy import (
     CheckConstraint,
@@ -13,7 +12,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
-from app.models.ledger_entry import LedgerEntry
+from app.models.ledger_account import LedgerAccount
+from app.models.transfers import Transfer
 
 
 class Wallet(Base):
@@ -43,6 +43,12 @@ class Wallet(Base):
         nullable=False,
     )
 
+    ledger_account_id: Mapped[int] = mapped_column(
+        ForeignKey("ledger_accounts.id"),
+        unique=True,
+        nullable=False,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
@@ -60,6 +66,10 @@ class Wallet(Base):
         back_populates="wallet",
     )
 
+    ledger_account: Mapped["LedgerAccount"] = relationship(
+        back_populates="wallet",
+    )
+
     sent_transfers: Mapped[list["Transfer"]] = relationship(
         foreign_keys="Transfer.sender_wallet_id",
         back_populates="sender_wallet",
@@ -70,16 +80,11 @@ class Wallet(Base):
         back_populates="receiver_wallet",
     )
 
-    ledger_entries: Mapped[list["LedgerEntry"]] = relationship(
+    fundings: Mapped[list["Funding"]] = relationship(
         back_populates="wallet",
     )
 
 
-
-
 if TYPE_CHECKING:
-    from app.models.transfers import Transfer
+    from app.models.funding import Funding
     from app.models.user import User
-    from app.models.ledger_entry import LedgerEntry
-
-    

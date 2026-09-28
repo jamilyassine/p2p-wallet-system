@@ -1,42 +1,45 @@
 from uuid import uuid4
 
-from app.core.security import hash_password
-from app.models.user import User
-from app.models.wallet import Wallet
 from app.models.ledger_entry import LedgerEntry, LedgerEntryType
 from app.models.transfers import Transfer, TransferStatus
+from app.schemas.user import UserCreate
+from app.services import user_service
+
+
+def create_test_user(db_session, name: str, email: str):
+    return user_service.create_user(
+        db_session,
+        UserCreate(
+            name=name,
+            email=email,
+            password="password123",
+        ),
+    )
+
+
+def set_wallet_balance(wallet, balance):
+    wallet.balance = balance
 
 
 def test_recent_ledger_pagination(client, db_session):
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
+    user1 = create_test_user(
+        db_session,
+        "Alice",
+        f"alice-{uuid4()}@example.com",
     )
 
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
+    user2 = create_test_user(
+        db_session,
+        "Bob",
+        f"bob-{uuid4()}@example.com",
     )
 
-    db_session.add_all([user1, user2])
-    db_session.commit()
+    wallet1 = user1.wallet
+    wallet2 = user2.wallet
 
-    db_session.refresh(user1)
-    db_session.refresh(user2)
+    set_wallet_balance(wallet1, 1000)
+    set_wallet_balance(wallet2, 500)
 
-    wallet1 = Wallet(
-        user_id=user1.id,
-        balance=1000,
-    )
-
-    wallet2 = Wallet(
-        user_id=user2.id,
-        balance=500,
-    )
-
-    db_session.add_all([wallet1, wallet2])
     db_session.commit()
 
     login_response = client.post(
@@ -79,25 +82,25 @@ def test_recent_ledger_pagination(client, db_session):
         [
             LedgerEntry(
                 transfer_id=transfer1.id,
-                wallet_id=wallet1.id,
+                ledger_account_id=wallet1.ledger_account_id,
                 entry_type=LedgerEntryType.DEBIT,
                 amount=100,
             ),
             LedgerEntry(
                 transfer_id=transfer1.id,
-                wallet_id=wallet2.id,
+                ledger_account_id=wallet2.ledger_account_id,
                 entry_type=LedgerEntryType.CREDIT,
                 amount=100,
             ),
             LedgerEntry(
                 transfer_id=transfer2.id,
-                wallet_id=wallet1.id,
+                ledger_account_id=wallet1.ledger_account_id,
                 entry_type=LedgerEntryType.DEBIT,
                 amount=50,
             ),
             LedgerEntry(
                 transfer_id=transfer2.id,
-                wallet_id=wallet2.id,
+                ledger_account_id=wallet2.ledger_account_id,
                 entry_type=LedgerEntryType.CREDIT,
                 amount=50,
             ),

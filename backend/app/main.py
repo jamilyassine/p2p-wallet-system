@@ -10,6 +10,8 @@ from app.api.wallets import router as wallets_router
 from app.handlers.exception_handlers import register_exception_handlers
 from app.api.ledger import router as ledger_router
 from app.api.notifications import router as notifications_router
+from app.api.funding import router as funding_router
+from app.api.reconciliation import router as reconciliation_router
 
 
 app = FastAPI()
@@ -30,6 +32,9 @@ app.include_router(wallets_router)
 app.include_router(transfers_router)
 app.include_router(ledger_router)
 app.include_router(notifications_router)
+app.include_router(funding_router)
+app.include_router(reconciliation_router)
+
 
 
 

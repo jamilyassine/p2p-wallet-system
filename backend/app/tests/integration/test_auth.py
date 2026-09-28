@@ -1,7 +1,5 @@
 from uuid import uuid4
 
-from app.core.security import hash_password
-from app.models.user import User
 from app.services import user_service
 from app.schemas.user import UserCreate
 
@@ -9,14 +7,14 @@ from app.schemas.user import UserCreate
 def test_successful_login(client, db_session):
     password = "password123"
 
-    user = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password(password),
+    user = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Alice",
+            email=f"alice-{uuid4()}@example.com",
+            password=password,
+        ),
     )
-
-    db_session.add(user)
-    db_session.commit()
 
     response = client.post(
         "/users/login",
@@ -34,18 +32,17 @@ def test_successful_login(client, db_session):
     assert data["token_type"] == "bearer"
 
 
-
 def test_login_with_invalid_password(client, db_session):
     password = "password123"
 
-    user = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password(password),
+    user = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Alice",
+            email=f"alice-{uuid4()}@example.com",
+            password=password,
+        ),
     )
-
-    db_session.add(user)
-    db_session.commit()
 
     response = client.post(
         "/users/login",
@@ -58,6 +55,7 @@ def test_login_with_invalid_password(client, db_session):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid email or password"
 
+
 def test_protected_endpoint_requires_auth(client):
     response = client.get("/users/1")
 
@@ -67,14 +65,14 @@ def test_protected_endpoint_requires_auth(client):
 def test_authenticated_user_can_access_protected_endpoint(client, db_session):
     password = "password123"
 
-    user = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password(password),
+    user = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Alice",
+            email=f"alice-{uuid4()}@example.com",
+            password=password,
+        ),
     )
-
-    db_session.add(user)
-    db_session.commit()
 
     login_response = client.post(
         "/users/login",
@@ -111,20 +109,23 @@ def test_invalid_token_is_rejected(client):
 def test_user_cannot_access_another_users_profile(client, db_session):
     password = "password123"
 
-    user_a = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password(password),
+    user_a = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Alice",
+            email=f"alice-{uuid4()}@example.com",
+            password=password,
+        ),
     )
 
-    user_b = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password(password),
+    user_b = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Bob",
+            email=f"bob-{uuid4()}@example.com",
+            password=password,
+        ),
     )
-
-    db_session.add_all([user_a, user_b])
-    db_session.commit()
 
     login_response = client.post(
         "/users/login",
@@ -149,20 +150,23 @@ def test_user_cannot_access_another_users_profile(client, db_session):
 def test_user_cannot_access_another_users_transfers(client, db_session):
     password = "password123"
 
-    user_a = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password(password),
+    user_a = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Alice",
+            email=f"alice-{uuid4()}@example.com",
+            password=password,
+        ),
     )
 
-    user_b = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password(password),
+    user_b = user_service.create_user(
+        db_session,
+        UserCreate(
+            name="Bob",
+            email=f"bob-{uuid4()}@example.com",
+            password=password,
+        ),
     )
-
-    db_session.add_all([user_a, user_b])
-    db_session.commit()
 
     login_response = client.post(
         "/users/login",

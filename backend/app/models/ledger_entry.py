@@ -1,24 +1,23 @@
-from datetime import datetime,UTC
+from datetime import datetime, UTC
 from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING
-from sqlalchemy import CheckConstraint, UniqueConstraint
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Enum as SqlEnum,
     ForeignKey,
     Integer,
     Numeric,
+    UniqueConstraint,
 )
-
-from sqlalchemy.orm import (
-    Mapped,
-    mapped_column,
-    relationship,
-)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+from app.models.ledger_account import LedgerAccount
+from app.models.funding import Funding
+
 
 class LedgerEntryType(str, Enum):
     DEBIT = "DEBIT"
@@ -27,6 +26,7 @@ class LedgerEntryType(str, Enum):
 
 class LedgerEntry(Base):
     __tablename__ = "ledger_entries"
+
     __table_args__ = (
         CheckConstraint(
             "amount > 0",
@@ -34,26 +34,34 @@ class LedgerEntry(Base):
         ),
         UniqueConstraint(
             "transfer_id",
-            "wallet_id",
+            "ledger_account_id",
             "entry_type",
-            name="uq_transfer_wallet_entry_type",
+            name="uq_transfer_ledger_account_entry_type",
+        ),
+        CheckConstraint(
+            "(transfer_id IS NOT NULL) <> (funding_id IS NOT NULL)",
+            name="ck_ledger_entry_transfer_or_funding",
         ),
     )
-
 
     id: Mapped[int] = mapped_column(
         Integer,
         primary_key=True,
     )
 
-    transfer_id: Mapped[int] = mapped_column(
+    transfer_id: Mapped[int | None] = mapped_column(
         ForeignKey("transfers.id"),
+        nullable=True,
+    )
+
+    ledger_account_id: Mapped[int] = mapped_column(
+        ForeignKey("ledger_accounts.id"),
         nullable=False,
     )
 
-    wallet_id: Mapped[int] = mapped_column(
-        ForeignKey("wallets.id"),
-        nullable=False,
+    funding_id: Mapped[int | None] = mapped_column(
+        ForeignKey("fundings.id"),
+        nullable=True,
     )
 
     entry_type: Mapped[LedgerEntryType] = mapped_column(
@@ -76,13 +84,15 @@ class LedgerEntry(Base):
         back_populates="ledger_entries",
     )
 
-    wallet: Mapped["Wallet"] = relationship(
+    ledger_account: Mapped["LedgerAccount"] = relationship(
+        back_populates="ledger_entries",
+    )
+
+    funding: Mapped["Funding"] = relationship(
         back_populates="ledger_entries",
     )
 
 
 if TYPE_CHECKING:
     from app.models.transfers import Transfer
-    from app.models.wallet import Wallet
-
     

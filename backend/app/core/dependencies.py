@@ -4,14 +4,14 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
-from app.db.session import SessionLocal, get_db
+from app.db.session import SessionLocal
 from app.models.user import User
 from app.repositories.user_repository import user_repository
 
+#oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/token")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")
-
-def get_auth_db():
+def get_db():
     db = SessionLocal()
     try:
         yield db
@@ -22,7 +22,7 @@ def get_auth_db():
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_auth_db),
+    db: Session = Depends(get_db),
 ) -> User:
 
     credentials_exception = HTTPException(
@@ -43,7 +43,7 @@ def get_current_user(
             int(user_id),
         )
 
-        db.rollback()
+        
 
     except (JWTError, ValueError):
         raise credentials_exception

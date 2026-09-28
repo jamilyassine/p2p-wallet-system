@@ -1,10 +1,10 @@
 from uuid import uuid4
 
-from app.core.security import hash_password
 from app.models.transfers import Transfer, TransferStatus
-from app.models.user import User
 from app.models.wallet import Wallet
 from app.models.ledger_entry import LedgerEntry
+from app.models.ledger_account import LedgerAccount
+from app.models.ledger_account import LedgerAccountType
 from app.services import user_service
 from app.schemas.user import UserCreate
 
@@ -27,41 +27,31 @@ def login_and_get_headers(client, email, password):
     }
 
 
+def set_wallet_balance(db_session, user, balance):
+    wallet = user.wallet
+    wallet.balance = balance
+    db_session.commit()
+    db_session.refresh(wallet)
+    return wallet
+
+
+def create_test_user(db_session, name, email=None):
+    return user_service.create_user(
+        db_session,
+        UserCreate(
+            name=name,
+            email=email or f"{name.lower()}-{uuid4()}@example.com",
+            password="password123",
+        ),
+    )
+
+
 def test_successful_transfer(client, db_session):
+    user1 = create_test_user(db_session, "Alice")
+    user2 = create_test_user(db_session, "Bob")
 
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add_all([user1, user2])
-    db_session.commit()
-
-    db_session.refresh(user1)
-    db_session.refresh(user2)
-
-    sender = Wallet(
-        user_id=user1.id,
-        balance=1000,
-    )
-
-    receiver = Wallet(
-        user_id=user2.id,
-        balance=500,
-    )
-
-    db_session.add_all([sender, receiver])
-    db_session.commit()
-
-    db_session.refresh(sender)
-    db_session.refresh(receiver)
+    sender = set_wallet_balance(db_session, user1, 1000)
+    receiver = set_wallet_balance(db_session, user2, 500)
 
     request_id = uuid4()
 
@@ -75,7 +65,7 @@ def test_successful_transfer(client, db_session):
         "/transfers/",
         json={
             "sender_id": user1.id,
-            "to_email": user2.email,  
+            "to_email": user2.email,
             "amount": 200,
             "request_id": str(request_id),
         },
@@ -109,40 +99,11 @@ def test_successful_transfer(client, db_session):
 
 
 def test_insufficient_funds(client, db_session):
+    user1 = create_test_user(db_session, "Alice")
+    user2 = create_test_user(db_session, "Bob")
 
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add_all([user1, user2])
-    db_session.commit()
-
-    db_session.refresh(user1)
-    db_session.refresh(user2)
-
-    sender = Wallet(
-        user_id=user1.id,
-        balance=100,
-    )
-
-    receiver = Wallet(
-        user_id=user2.id,
-        balance=500,
-    )
-
-    db_session.add_all([sender, receiver])
-    db_session.commit()
-
-    db_session.refresh(sender)
-    db_session.refresh(receiver)
+    sender = set_wallet_balance(db_session, user1, 100)
+    receiver = set_wallet_balance(db_session, user2, 500)
 
     request_id = uuid4()
 
@@ -190,34 +151,29 @@ def test_insufficient_funds(client, db_session):
         == 0
     )
 
+
 def test_invalid_wallet(client, db_session):
+    user1 = create_test_user(db_session, "Alice")
+    user2 = create_test_user(db_session, "Bob")
 
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
+    sender = set_wallet_balance(db_session, user1, 1000)
+
+    # Remove recipient wallet to simulate an invalid wallet state.
+    recipient_wallet = user2.wallet
+    recipient_account_id = recipient_wallet.ledger_account_id
+
+    db_session.delete(recipient_wallet)
+    db_session.flush()
+
+    recipient_account = db_session.get(
+        LedgerAccount,
+        recipient_account_id,
     )
 
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
+    if recipient_account is not None:
+        db_session.delete(recipient_account)
 
-    db_session.add_all([user1, user2])
     db_session.commit()
-
-    db_session.refresh(user1)
-    db_session.refresh(user2)
-
-    sender = Wallet(
-        user_id=user1.id,
-        balance=1000,
-    )
-
-    db_session.add(sender)
-    db_session.commit()
-    db_session.refresh(sender)
 
     request_id = uuid4()
 
@@ -259,41 +215,13 @@ def test_invalid_wallet(client, db_session):
         == 0
     )
 
+
 def test_idempotent_retry(client, db_session):
+    user1 = create_test_user(db_session, "Alice")
+    user2 = create_test_user(db_session, "Bob")
 
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add_all([user1, user2])
-    db_session.commit()
-
-    db_session.refresh(user1)
-    db_session.refresh(user2)
-
-    sender = Wallet(
-        user_id=user1.id,
-        balance=1000,
-    )
-
-    receiver = Wallet(
-        user_id=user2.id,
-        balance=500,
-    )
-
-    db_session.add_all([sender, receiver])
-    db_session.commit()
-
-    db_session.refresh(sender)
-    db_session.refresh(receiver)
+    sender = set_wallet_balance(db_session, user1, 1000)
+    receiver = set_wallet_balance(db_session, user2, 500)
 
     request_id = uuid4()
 
@@ -359,26 +287,10 @@ def test_idempotent_retry(client, db_session):
         == 2
     )
 
+
 def test_self_transfer(client, db_session):
-
-    user = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    wallet = Wallet(
-        user_id=user.id,
-        balance=1000,
-    )
-
-    db_session.add(wallet)
-    db_session.commit()
-    db_session.refresh(wallet)
+    user = create_test_user(db_session, "Alice")
+    wallet = set_wallet_balance(db_session, user, 1000)
 
     request_id = uuid4()
 
@@ -423,41 +335,13 @@ def test_self_transfer(client, db_session):
         == 0
     )
 
+
 def test_invalid_amount(client, db_session):
+    user1 = create_test_user(db_session, "Alice")
+    user2 = create_test_user(db_session, "Bob")
 
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add_all([user1, user2])
-    db_session.commit()
-
-    db_session.refresh(user1)
-    db_session.refresh(user2)
-
-    sender = Wallet(
-        user_id=user1.id,
-        balance=1000,
-    )
-
-    receiver = Wallet(
-        user_id=user2.id,
-        balance=500,
-    )
-
-    db_session.add_all([sender, receiver])
-    db_session.commit()
-
-    db_session.refresh(sender)
-    db_session.refresh(receiver)
+    sender = set_wallet_balance(db_session, user1, 1000)
+    receiver = set_wallet_balance(db_session, user2, 500)
 
     request_id = uuid4()
 
@@ -504,37 +388,24 @@ def test_invalid_amount(client, db_session):
         == 0
     )
 
+
 def test_ledger_recent_requires_auth(client):
     response = client.get("/ledger/recent")
 
     assert response.status_code == 401
 
 
-def test_user_cannot_access_another_users_wallet_ledger(client, db_session):
-    password = "password123"
-
-    user_a = user_service.create_user(
-        db_session,
-        UserCreate(
-            name="Alice",
-            email=f"alice-{uuid4()}@example.com",
-            password=password,
-        ),
-    )
-
-    user_b = user_service.create_user(
-        db_session,
-        UserCreate(
-            name="Bob",
-            email=f"bob-{uuid4()}@example.com",
-            password=password,
-        ),
-    )
+def test_user_cannot_access_another_users_wallet_ledger(
+    client,
+    db_session,
+):
+    user_a = create_test_user(db_session, "Alice")
+    user_b = create_test_user(db_session, "Bob")
 
     headers = login_and_get_headers(
         client,
         user_a.email,
-        password,
+        "password123",
     )
 
     response = client.get(
@@ -546,41 +417,15 @@ def test_user_cannot_access_another_users_wallet_ledger(client, db_session):
 
 
 def test_user_cannot_access_transfer_they_are_not_involved_in(
-    client, db_session
+    client,
+    db_session,
 ):
-    password = "password123"
-
-    user_a = user_service.create_user(
-        db_session,
-        UserCreate(
-            name="Alice",
-            email=f"alice-{uuid4()}@example.com",
-            password=password,
-        ),
-    )
-
-    user_b = user_service.create_user(
-        db_session,
-        UserCreate(
-            name="Bob",
-            email=f"bob-{uuid4()}@example.com",
-            password=password,
-        ),
-    )
-
-    user_c = user_service.create_user(
-        db_session,
-        UserCreate(
-            name="Charlie",
-            email=f"charlie-{uuid4()}@example.com",
-            password=password,
-        ),
-    )
-
-    request_id = uuid4()
+    user_a = create_test_user(db_session, "Alice")
+    user_b = create_test_user(db_session, "Bob")
+    user_c = create_test_user(db_session, "Charlie")
 
     transfer = Transfer(
-        request_id=request_id,
+        request_id=uuid4(),
         sender_wallet_id=user_a.wallet.id,
         receiver_wallet_id=user_b.wallet.id,
         amount=100,
@@ -594,7 +439,7 @@ def test_user_cannot_access_transfer_they_are_not_involved_in(
     headers = login_and_get_headers(
         client,
         user_c.email,
-        password,
+        "password123",
     )
 
     response = client.get(
@@ -606,24 +451,8 @@ def test_user_cannot_access_transfer_they_are_not_involved_in(
 
 
 def test_recipient_email_not_found(client, db_session):
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add(user1)
-    db_session.commit()
-    db_session.refresh(user1)
-
-    sender = Wallet(
-        user_id=user1.id,
-        balance=1000,
-    )
-
-    db_session.add(sender)
-    db_session.commit()
-    db_session.refresh(sender)
+    user1 = create_test_user(db_session, "Alice")
+    sender = set_wallet_balance(db_session, user1, 1000)
 
     request_id = uuid4()
 
@@ -667,24 +496,8 @@ def test_recipient_email_not_found(client, db_session):
 
 
 def test_self_transfer_by_email(client, db_session):
-    user = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    wallet = Wallet(
-        user_id=user.id,
-        balance=1000,
-    )
-
-    db_session.add(wallet)
-    db_session.commit()
-    db_session.refresh(wallet)
+    user = create_test_user(db_session, "Alice")
+    wallet = set_wallet_balance(db_session, user, 1000)
 
     request_id = uuid4()
 
@@ -732,23 +545,8 @@ def test_self_transfer_by_email(client, db_session):
 
 
 def test_invalid_recipient_email_format(client, db_session):
-    user = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    wallet = Wallet(
-        user_id=user.id,
-        balance=1000,
-    )
-
-    db_session.add(wallet)
-    db_session.commit()
+    user = create_test_user(db_session, "Alice")
+    set_wallet_balance(db_session, user, 1000)
 
     request_id = uuid4()
 
@@ -772,25 +570,9 @@ def test_invalid_recipient_email_format(client, db_session):
     assert response.status_code == 422
 
 
-
 def test_empty_recipient_email(client, db_session):
-    user = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
-
-    wallet = Wallet(
-        user_id=user.id,
-        balance=1000,
-    )
-
-    db_session.add(wallet)
-    db_session.commit()
+    user = create_test_user(db_session, "Alice")
+    set_wallet_balance(db_session, user, 1000)
 
     request_id = uuid4()
 
@@ -815,35 +597,11 @@ def test_empty_recipient_email(client, db_session):
 
 
 def test_recipient_email_case_insensitive(client, db_session):
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
+    user1 = create_test_user(db_session, "Alice")
+    user2 = create_test_user(db_session, "Bob")
 
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add_all([user1, user2])
-    db_session.commit()
-    db_session.refresh(user1)
-    db_session.refresh(user2)
-
-    sender = Wallet(
-        user_id=user1.id,
-        balance=1000,
-    )
-
-    receiver = Wallet(
-        user_id=user2.id,
-        balance=500,
-    )
-
-    db_session.add_all([sender, receiver])
-    db_session.commit()
+    sender = set_wallet_balance(db_session, user1, 1000)
+    receiver = set_wallet_balance(db_session, user2, 500)
 
     request_id = uuid4()
 
@@ -874,26 +632,11 @@ def test_recipient_email_case_insensitive(client, db_session):
 
 
 def test_idempotent_retry_by_email(client, db_session):
-    user1 = User(
-        name="Alice",
-        email=f"alice-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
+    user1 = create_test_user(db_session, "Alice")
+    user2 = create_test_user(db_session, "Bob")
 
-    user2 = User(
-        name="Bob",
-        email=f"bob-{uuid4()}@example.com",
-        password_hash=hash_password("password123"),
-    )
-
-    db_session.add_all([user1, user2])
-    db_session.commit()
-
-    sender = Wallet(user_id=user1.id, balance=1000)
-    receiver = Wallet(user_id=user2.id, balance=500)
-
-    db_session.add_all([sender, receiver])
-    db_session.commit()
+    sender = set_wallet_balance(db_session, user1, 1000)
+    receiver = set_wallet_balance(db_session, user2, 500)
 
     request_id = uuid4()
 
@@ -957,3 +700,6 @@ def test_idempotent_retry_by_email(client, db_session):
         .count()
         == 2
     )
+
+
+    
