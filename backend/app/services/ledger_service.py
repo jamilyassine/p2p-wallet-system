@@ -39,6 +39,7 @@ class LedgerService:
         transactions = [
             LedgerEntryResponse(
                 transfer_id=entry.transfer_id,
+                funding_id=entry.funding_id,
                 wallet_id=entry.ledger_account.wallet.id,
                 wallet_user_name=entry.ledger_account.wallet.user.name,
                 entry_type=entry.entry_type,
@@ -67,4 +68,3 @@ class LedgerService:
 
 
 ledger_service = LedgerService()
-

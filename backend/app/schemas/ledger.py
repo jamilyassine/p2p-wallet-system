@@ -9,7 +9,8 @@ from app.models.ledger_entry import LedgerEntryType
 class LedgerEntryResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    transfer_id: int
+    transfer_id: int | None = None
+    funding_id: int | None = None
     wallet_id: int
     wallet_user_name: str
     entry_type: LedgerEntryType

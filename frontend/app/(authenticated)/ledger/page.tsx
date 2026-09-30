@@ -163,7 +163,7 @@ export default function LedgerPage() {
                                     </th>
 
                                     <th className="w-[15%] border-b border-gray-200 px-4 py-3 text-left font-semibold">
-                                        Transfer ID
+                                        Reference
                                     </th>
 
                                     <th className="w-[22%] border-b border-gray-200 px-4 py-3 text-left font-semibold">
@@ -187,7 +187,7 @@ export default function LedgerPage() {
                             <tbody>
                                 {entries.map((entry, index) => (
                                     <tr
-                                        key={`${entry.transfer_id}-${entry.wallet_id}-${entry.entry_type}`}
+                                        key={`${entry.transfer_id ?? entry.funding_id ?? "unknown"}-${entry.wallet_id}-${entry.entry_type}-${entry.created_at}`}
                                         className="hover:bg-gray-50"
                                     >
                                         <td className="border-b border-gray-100 px-3 py-3">
@@ -200,7 +200,11 @@ export default function LedgerPage() {
 
                                         <td className="border-b border-gray-100 px-3 py-3">
                                             <span className="font-medium text-blue-600">
-                                                #{entry.transfer_id}
+                                                {entry.transfer_id
+                                                    ? `Transfer #${entry.transfer_id}`
+                                                    : entry.funding_id
+                                                      ? `Funding #${entry.funding_id}`
+                                                      : "—"}
                                             </span>
                                         </td>
 
