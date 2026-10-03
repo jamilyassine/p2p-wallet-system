@@ -84,7 +84,7 @@ p2p-wallet-system/
 ├── docs/
 │   ├── API.md
 │   ├── Architecture.md
-│   ├── Ledger Design.md
+│   ├── ledger_design.md
 │   ├── Testing.md
 │   ├── Performance.md
 │   └── Deployment.md
@@ -144,7 +144,7 @@ Detailed documentation is available inside the docs/ directory.
     docs/Architecture.md
 
   Ledger Design
-    docs/Ledger Design.md
+    docs/ledger_design.md
 
   Testing
     docs/Testing.md
