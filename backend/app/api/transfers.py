@@ -30,6 +30,7 @@ def create_transfer_endpoint(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+
     response = transfer_service.transfer_money(
         db=db,
         request_id=request.request_id,

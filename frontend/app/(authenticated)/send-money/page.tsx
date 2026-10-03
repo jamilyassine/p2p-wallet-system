@@ -100,11 +100,8 @@ function SendMoneyContent() {
             />
 
             {/* Transfer form */}
-            <div className="flex justify-center">
-                <section
-                    className="relative mt-32 w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-8 shadow-sm"
-                    style={{ transform: "translateY(80px)" }}
-                >
+            <div className="flex justify-center pt-16">
+                <section className="w-full max-w-3xl rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {/* Recipient */}
                         <div>
