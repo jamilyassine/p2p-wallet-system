@@ -1,9 +1,10 @@
+
 import threading
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from app.db.session import SessionLocal
+from app.tests.conftest import TestSessionLocal
 from app.main import app
 from app.models.ledger_entry import LedgerEntry, LedgerEntryType
 from app.models.transfers import Transfer
@@ -43,7 +44,7 @@ def set_wallet_balance(wallet, balance):
     wallet.balance = balance
 
 
-def test_concurrent_transfers_from_same_wallet(db_session):
+def test_concurrent_transfers_from_same_wallet(client, db_session):
     sender = create_user(db_session, "Sender", f"sender-{uuid4()}@example.com")
     receiver_1 = create_user(
         db_session, "Receiver 1", f"receiver-1-{uuid4()}@example.com"
@@ -71,8 +72,7 @@ def test_concurrent_transfers_from_same_wallet(db_session):
     receiver_1_wallet_id = receiver_1_wallet.id
     receiver_2_wallet_id = receiver_2_wallet.id
 
-    auth_client = TestClient(app)
-    headers = login_and_get_headers(auth_client, sender_email)
+    headers = login_and_get_headers(client, sender_email)
 
     barrier = threading.Barrier(2)
     responses = []
@@ -114,7 +114,7 @@ def test_concurrent_transfers_from_same_wallet(db_session):
         response.status_code for response in responses
     ) == [200, 400]
 
-    db = SessionLocal()
+    db = TestSessionLocal()
 
     try:
         sender_wallet = db.get(Wallet, sender_wallet_id)
@@ -136,7 +136,7 @@ def test_concurrent_transfers_from_same_wallet(db_session):
         db.close()
 
 
-def test_concurrent_duplicate_transfer_requests(db_session):
+def test_concurrent_duplicate_transfer_requests(client, db_session):
     sender = create_user(db_session, "Sender", f"sender-{uuid4()}@example.com")
     receiver = create_user(
         db_session, "Receiver", f"receiver-{uuid4()}@example.com"
@@ -157,8 +157,7 @@ def test_concurrent_duplicate_transfer_requests(db_session):
     sender_wallet_id = sender_wallet.id
     receiver_wallet_id = receiver_wallet.id
 
-    auth_client = TestClient(app)
-    headers = login_and_get_headers(auth_client, sender_email)
+    headers = login_and_get_headers(client, sender_email)
 
     barrier = threading.Barrier(2)
     responses = []
@@ -195,7 +194,7 @@ def test_concurrent_duplicate_transfer_requests(db_session):
         response.status_code for response in responses
     ) == [200, 200]
 
-    db = SessionLocal()
+    db = TestSessionLocal()
 
     try:
         sender_wallet = db.get(Wallet, sender_wallet_id)
