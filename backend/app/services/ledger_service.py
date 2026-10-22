@@ -60,11 +60,24 @@ class LedgerService:
         self,
         db: Session,
         transfer_id: int,
-    ) -> list[LedgerEntry]:
-        return ledger_repository.get_by_transfer(
+    ) -> list[LedgerEntryResponse]:
+        entries = ledger_repository.get_by_transfer(
             db=db,
             transfer_id=transfer_id,
         )
+
+        return [
+            LedgerEntryResponse(
+                transfer_id=entry.transfer_id,
+                funding_id=entry.funding_id,
+                wallet_id=entry.ledger_account.wallet.id,
+                wallet_user_name=entry.ledger_account.wallet.user.name,
+                entry_type=entry.entry_type,
+                amount=entry.amount,
+                created_at=entry.created_at,
+            )
+            for entry in entries
+        ]
 
 
 ledger_service = LedgerService()
