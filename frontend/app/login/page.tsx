@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_URL } from "@/lib/api";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -16,7 +17,7 @@ export default function LoginPage() {
 
         try {
             const response = await fetch(
-                "http://localhost:8000/users/login",
+                `${API_URL}/users/login`,
                 {
                     method: "POST",
                     headers: {

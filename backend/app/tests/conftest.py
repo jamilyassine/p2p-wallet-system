@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.db.session import DATABASE_URL, get_db
-from app.core.dependencies import get_db as core_get_db
+from app.core.dependencies import get_db as core_get_db, get_funding_db
 from app.models.funding import Funding
 from app.models.ledger_account import LedgerAccount, LedgerAccountType
 from app.models.ledger_entry import LedgerEntry
@@ -119,6 +119,7 @@ def client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[core_get_db] = override_get_db
+    app.dependency_overrides[get_funding_db] = override_get_db
 
     with TestClient(app) as client:
         yield client

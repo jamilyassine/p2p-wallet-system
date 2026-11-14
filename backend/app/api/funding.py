@@ -3,13 +3,13 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
+from app.models.user import User
 from app.services.funding_service import fund_wallet
-
+from app.core.dependencies import get_funding_db, require_admin
 
 router = APIRouter(
-    prefix="/funding",
-    tags=["Funding"],
+    prefix="/admin/funding",
+    tags=["Admin Funding"],
 )
 
 
@@ -17,7 +17,8 @@ router = APIRouter(
 def create_funding(
     email: str,
     amount: Decimal,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_funding_db),
+    admin: User = Depends(require_admin),
 ):
     return fund_wallet(
         db=db,
