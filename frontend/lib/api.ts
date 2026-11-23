@@ -8,7 +8,7 @@ export async function apiFetch(
 ) {
     const token = getAccessToken();
 
-    const response = await fetch(`${API_URL}${path}`, {
+    const response = await fetch(`${API_URL}/api${path}`, {
         ...options,
         headers: {
             ...options.headers,
