@@ -13,7 +13,8 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_URL: http://16.171.57.116:8000
+        NEXT_PUBLIC_API_URL: https://vaultledger-uat.duckdns.org/api
     restart: unless-stopped
     ports:
       - "3000:3000"
+
