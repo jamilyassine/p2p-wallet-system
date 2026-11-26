@@ -38,6 +38,7 @@ jobs:
       DB_USER: postgres
       DB_PASSWORD: postgres
       JWT_SECRET_KEY: ci-test-secret-key-only
+      PYTHONPATH: .
 
     steps:
       - name: Checkout repository
@@ -90,3 +91,4 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
+
