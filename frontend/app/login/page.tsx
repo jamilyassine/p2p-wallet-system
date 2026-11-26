@@ -17,7 +17,7 @@ export default function LoginPage() {
 
         try {
             const response = await fetch(
-                `${API_URL}/users/login`,
+                `${API_URL}/api/users/login`,
                 {
                     method: "POST",
                     headers: {

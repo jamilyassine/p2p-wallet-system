@@ -1,13 +1,16 @@
 import { LedgerEntry } from "@/types/ledger";
-import { API_URL } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export async function getWalletLedger(
     walletId: number,
 ): Promise<LedgerEntry[]> {
-    const response = await fetch(
-        `${API_URL}/ledger/wallet/${walletId}`
+    const response = await apiFetch(
+        `/ledger/wallet/${walletId}`
     );
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch wallet ledger");
+    }
 
     return response.json();
 }
-

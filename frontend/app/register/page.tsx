@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { API_URL } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -15,7 +15,7 @@ export default function RegisterPage() {
     const handleRegister = async () => {
         setError("");
 
-        const response = await fetch(`${API_URL}/users/`, {
+        const response = await apiFetch("/users/", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

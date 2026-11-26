@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { getAccessToken } from "@/lib/auth";
+
+function subscribe(callback: () => void) {
+    window.addEventListener("storage", callback);
+    return () => window.removeEventListener("storage", callback);
+}
 
 export default function Layout({
     children,
@@ -13,24 +18,17 @@ export default function Layout({
 }) {
     const router = useRouter();
 
-    const [token, setToken] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const token = useSyncExternalStore(
+        subscribe,
+        getAccessToken,
+        () => null
+    );
 
     useEffect(() => {
-        const accessToken = getAccessToken();
-
-        if (!accessToken) {
+        if (token === null) {
             router.replace("/login");
-            return;
         }
-
-        setToken(accessToken);
-        setIsLoading(false);
-    }, [router]);
-
-    if (isLoading) {
-        return null;
-    }
+    }, [token, router]);
 
     if (!token) {
         return null;
@@ -38,4 +36,3 @@ export default function Layout({
 
     return <DashboardLayout>{children}</DashboardLayout>;
 }
-
