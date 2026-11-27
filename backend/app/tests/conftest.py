@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.db.session import DATABASE_URL, get_db
+from app.db.seed import seed_system_ledger_account
 from app.core.dependencies import get_db as core_get_db, get_funding_db
 from app.models.funding import Funding
 from app.models.ledger_account import LedgerAccount, LedgerAccountType
@@ -28,6 +29,7 @@ TestSessionLocal = sessionmaker(
 @pytest.fixture
 def db_session():
     db = TestSessionLocal()
+    seed_system_ledger_account(db)
 
     baseline = {
         User: {row[0] for row in db.execute(select(User.id))},
